@@ -491,6 +491,7 @@ class AdminDrawView(RoundMixin, AdministratorMixin, AdminDrawUtilitiesMixin, Vue
         table.add_debate_team_columns(draw)
 
         # For draw details and draw draft pages
+        standings = None
         if r.draw_status is Round.Status.DRAFT or self.detailed:
             if r.prev:
                 teams = Team.objects.filter(debateteam__debate__round=r)
@@ -503,8 +504,12 @@ class AdminDrawView(RoundMixin, AdministratorMixin, AdminDrawUtilitiesMixin, Vue
 
                 # subrank only makes sense if there's a second metric to rank on
                 rankings = ('rank', 'subrank') if len(metrics) > 1 else ('rank',)
-                generator = TeamStandingsGenerator(metrics, rankings,
-                    extra_metrics=(pullup_metric,) if pullup_metric and pullup_metric not in metrics else ())
+                extra_metrics = []
+                if pullup_metric and pullup_metric not in metrics:
+                    extra_metrics.append(pullup_metric)
+                if 'npullups' not in metrics and 'npullups' not in extra_metrics:
+                    extra_metrics.append('npullups')
+                generator = TeamStandingsGenerator(metrics, rankings, extra_metrics=tuple(extra_metrics))
                 standings = generator.generate(teams, round=r.prev)
                 if not r.is_break_round:
                     table.add_debate_ranking_columns(draw, standings)
@@ -517,7 +522,7 @@ class AdminDrawView(RoundMixin, AdministratorMixin, AdminDrawUtilitiesMixin, Vue
         else:
             table.add_debate_adjudicators_column(draw, show_splits=False, for_admin=True)
 
-        table.add_draw_conflicts_columns(draw, self.venue_conflicts, self.adjudicator_conflicts)
+        table.add_draw_conflicts_columns(draw, self.venue_conflicts, self.adjudicator_conflicts, standings)
 
         if not r.is_break_round:
             table.highlight_column = 0  # Highlight based on first column (bracket)
