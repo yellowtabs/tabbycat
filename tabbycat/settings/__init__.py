@@ -21,7 +21,10 @@ base_settings = [
     'core.py',
 ]
 
-if os.environ.get('GITHUB_CI', '') and bool(os.environ['GITHUB_CI']):
+if os.environ.get('ON_YELLOWTABS', ''):
+    base_settings.append('yellowtabs.py')
+    root.info('SPLIT_SETTINGS: imported yellowtabs.py')
+elif os.environ.get('GITHUB_CI', '') and bool(os.environ['GITHUB_CI']):
     base_settings.append('github.py')
     root.info('SPLIT_SETTINGS: imported github.py')
 elif os.environ.get('IN_DOCKER', '') and bool(int(os.environ['IN_DOCKER'])):
