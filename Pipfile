@@ -44,7 +44,7 @@ django-push-notifications = {extras = ["wp"], version = "*"}
 
 [dev-packages]
 pre-commit = "*"
-selenium = "==3.141.*"
+selenium = "==4.44.*"
 django-debug-toolbar = "*"
 sphinx = "*"
 sphinx-autobuild = "*"
