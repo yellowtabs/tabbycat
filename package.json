@@ -53,7 +53,7 @@
     "quagga": "0.12.x",
     "sass": "^1.56.1",
     "stats-percentile": "^3.3.0",
-    "vue": "^2.6.14",
+    "vue": "^3.5.38",
     "vue-cli-plugin-webpack-bundle-analyzer": "^4.0.0",
     "vue-template-compiler": "^2.6.14",
     "vue-touch": "^2.0.0-beta.4",
