@@ -13,13 +13,17 @@
 
 </div>
 
-Tabbycat is a draw tabulation system for British Parliamentary and a variety of two-team formats. It was used at Australs 2010 and 2012–2019, EUDC 2018, WUDC 2019–2022 and many other tournaments of all sizes and formats. To see an example of a post-tournament website, have a look at the [WUDC 2022 tab website](https://wudc2022.calicotab.com/wudc/).
+> This is the YellowTabs-maintained fork of Tabbycat used by
+> [YellowTabs managed hosting](https://yellowtabs.com/). It contains modifications
+> made by YellowTabs since June 2026 and remains licensed under the GNU AGPL v3.
+
+Tabbycat is a draw tabulation system for British Parliamentary and a variety of two-team formats. It was used at Australs 2010 and 2012–2019, EUDC 2018, WUDC 2019–2022 and many other tournaments of all sizes and formats.
 
 **Want to try it out?** The best way to trial Tabbycat is just to launch a new site, as described [below](#%EF%B8%8F-installation)). It takes just a few clicks, requires no technical background, and you can always deploy a fresh copy when you're ready to run your tournament.
 
 ## 🔍 Features
 
-- A range of setup options. Tabbycat powers Calico, a paid service for hosting tournaments. Tabbycat can also run as a local installation (natively, or via Docker) and be deployed to the free-tiers of the Render or Heroku platforms.
+- A range of setup options. Tabbycat powers [YellowTabs](https://yellowtabs.com/), a managed hosting service for tournaments. Tabbycat can also run as a local installation (natively, or via Docker) and be deployed to platforms such as Render or Heroku.
 - Enter data from multiple computers simultaneously and (optionally) display results, draws, and other information online
 - Collect ballots and feedback online, or from printed forms customised for each round ( adjudicator feedback questions and rankings [are configurable](http://tabbycat.readthedocs.io/en/stable/features/adjudicator-feedback.html))
 - Automated adjudicator allocations based on adjudicator ranking, debate priority, and conflicts/clashes
@@ -35,11 +39,11 @@ Our user guide is at [tabbycat.readthedocs.io](http://tabbycat.readthedocs.io/).
 
 Tabbycat can be used in a number of ways.
 
-[Calico](https://calicotab.com/) is a managed hosting service run by one of Tabbycat's developers. For a flat fee, it will host tab websites, automatically manage their setup and performance, and provide ongoing access to the released tab. Click this button to deploy to Calico:
+[YellowTabs](https://yellowtabs.com/) is the recommended managed hosting service for this fork. For a flat fee, it hosts your Tabbycat instance, manages setup and infrastructure, and keeps tournament results available online.
 
-[![Deploy](https://raw.githubusercontent.com/gist/tienne-B/fc04ecd3c11a38424b642b4bba60e8d9/raw/b2c71d7d6a0d368d3e9dfd8002af729d155ad09b/calicodeploy.svg)](https://calicotab.com/tournaments/new/)
+**[Host a tournament with YellowTabs →](https://yellowtabs.com/buy)**
 
-If you do not want to use Calico, you will need to setup and manage your own copy of Tabbycat:
+If you do not want to use managed hosting, you can set up and manage your own copy of Tabbycat:
 
 1. For tournaments that require online access, you can [install and run Tabbycat from Heroku](https://tabbycat.readthedocs.io/en/stable/install/heroku.html). However, this will cost a small amount of money _unless_ you are a student and have registered for free Heroku hosting credits
 2. For tournaments where online access is unnecessary, you can [install and run Tabbycat from your own computer](https://tabbycat.readthedocs.io/en/stable/install/local.html)
