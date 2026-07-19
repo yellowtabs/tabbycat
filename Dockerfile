@@ -6,9 +6,9 @@ FROM python:3.11
 SHELL ["/bin/bash", "--login", "-c"]
 
 # Just needed for all things python (note this is setting an env variable)
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONUNBUFFERED=1
 # Needed for correct settings input
-ENV IN_DOCKER 1
+ENV IN_DOCKER=1
 
 # Setup Node/NPM
 RUN apt-get update

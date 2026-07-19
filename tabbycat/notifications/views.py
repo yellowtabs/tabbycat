@@ -1,7 +1,11 @@
 import json
 import logging
+import hashlib
+import hmac
 from datetime import datetime, timezone
+from os import environ
 from smtplib import SMTPException, SMTPResponseException
+from time import time
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from asgiref.sync import async_to_sync
@@ -10,6 +14,8 @@ from django.conf import settings
 from django.contrib import messages
 from django.db.models import Prefetch, Q
 from django.http import HttpResponse
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse_lazy
 from django.utils import formats
 from django.utils.html import escape
@@ -36,6 +42,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 site_tz = get_default_timezone()
+
+
+def _verify_yellowtabs_signature(request: 'HttpRequest') -> bool:
+    secret = environ.get('YELLOWTABS_ACTIVITY_SECRET', '')
+    timestamp = request.headers.get('X-YT-Timestamp', '')
+    signature = request.headers.get('X-YT-Signature', '')
+    if not (secret and timestamp and signature):
+        return False
+    try:
+        issued_at_ms = int(timestamp)
+    except ValueError:
+        return False
+    if abs((time() * 1000) - issued_at_ms) > 5 * 60 * 1000:
+        return False
+    expected = hmac.new(
+        secret.encode('utf-8'),
+        timestamp.encode('utf-8') + b'.' + request.body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
 
 
 class TestEmailView(WarnAboutLegacySendgridConfigVarsMixin, AdministratorMixin, FormView):
@@ -209,6 +235,37 @@ class EmailEventWebhookView(TournamentMixin, View):
         EmailStatus.objects.bulk_create(statuses)
 
         return HttpResponse(status=201) # 201: Created
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class YellowTabsSesEventWebhookView(View):
+
+    def post(self, request: 'HttpRequest', *args, **kwargs) -> HttpResponse:
+        if not _verify_yellowtabs_signature(request):
+            return HttpResponse(status=403)
+
+        try:
+            obj = json.loads(request.body)
+        except ValueError:
+            return HttpResponse(status=400)
+
+        hook_id = obj.get('hookId')
+        sns_message_id = obj.get('snsMessageId')
+        event = obj.get('event')
+        if not (hook_id and sns_message_id and event):
+            return HttpResponse(status=400)
+        if event not in EmailStatus.EventType.values:
+            return HttpResponse(status=400)
+
+        record = SentMessage.objects.filter(hook_id=hook_id).first()
+        if record is None:
+            return HttpResponse(status=202)
+
+        if EmailStatus.objects.filter(data__snsMessageId=sns_message_id).exists():
+            return HttpResponse(status=200)
+
+        EmailStatus.objects.create(email=record, event=event, data=obj)
+        return HttpResponse(status=201)
 
 
 class BaseSelectPeopleEmailView(AdministratorMixin, TournamentMixin, VueTableTemplateView, FormView):

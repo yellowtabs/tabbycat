@@ -27,6 +27,18 @@ TABBYCAT_CODENAME = 'Tonkinese'
 READTHEDOCS_VERSION = 'v2.11.1'
 
 # ==============================================================================
+# YellowTabs managed hosting (fork-only; all gated behind ON_YELLOWTABS)
+# ==============================================================================
+# When this instance is run by the YellowTabs platform, creating a new
+# tournament from inside Tabbycat is paywalled: the action bounces to the
+# YellowTabs checkout for this organization, which provisions the new edition
+# (tournament) via the ORM once paid. Injected by scripts/provision.sh.
+
+ON_YELLOWTABS = bool(int(os.environ.get('ON_YELLOWTABS', '0')))
+YELLOWTABS_CHECKOUT_URL = os.environ.get('YELLOWTABS_CHECKOUT_URL', '')
+YELLOWTABS_ORG_SLUG = os.environ.get('YELLOWTABS_ORG_SLUG', '')
+
+# ==============================================================================
 # Internationalization and Localization
 # ==============================================================================
 

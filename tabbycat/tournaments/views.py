@@ -230,6 +230,18 @@ class CreateTournamentView(AdministratorMixin, WarnAboutDatabaseUseMixin, Create
     template_name = "create_tournament.html"
     db_warning_severity = messages.ERROR
 
+    def dispatch(self, request, *args, **kwargs):
+        # On YellowTabs managed hosting, a new tournament ("edition") is a paid
+        # add-on: bounce to the checkout, which provisions it once paid. This is
+        # the real guard — the template links are just the friendly entry points.
+        if getattr(settings, 'ON_YELLOWTABS', False):
+            checkout = getattr(settings, 'YELLOWTABS_CHECKOUT_URL', '')
+            if checkout:
+                org = getattr(settings, 'YELLOWTABS_ORG_SLUG', '')
+                target = "%s?org=%s" % (checkout, org) if org else checkout
+                return redirect(target)
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         demo_datasets = [
             ('minimal8team', _("8-team generic dataset")),

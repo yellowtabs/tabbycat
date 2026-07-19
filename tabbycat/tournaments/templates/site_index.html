@@ -21,8 +21,12 @@
       {% blocktrans trimmed asvar text %}
         It looks like there aren't any tournaments on this site. Would you like to create one?
       {% endblocktrans %}
-      {% url 'tournament-create' as url %}
-      {% include "components/item-action.html" with alone=True type="success" to_complete=True %}
+      {% if on_yellowtabs %}
+        {% include "components/item-action.html" with alone=True type="success" to_complete=True url=yellowtabs_checkout_url %}
+      {% else %}
+        {% url 'tournament-create' as url %}
+        {% include "components/item-action.html" with alone=True type="success" to_complete=True %}
+      {% endif %}
 
     {% else %}
 
@@ -54,8 +58,13 @@
 <div class="list-group mt-2">
   {% if user.is_superuser %}
 
-    {% trans "New Tournament" as text %}{% url 'tournament-create' as url %}
-    {% include "components/item-action.html" with icon="plus-circle" %}
+    {% trans "New Tournament" as text %}
+    {% if on_yellowtabs %}
+      {% include "components/item-action.html" with icon="plus-circle" url=yellowtabs_checkout_url %}
+    {% else %}
+      {% url 'tournament-create' as url %}
+      {% include "components/item-action.html" with icon="plus-circle" %}
+    {% endif %}
 
     {% trans "Edit Database Area" as text %}{% url 'admin:index' as url %}
     {% include "components/item-action.html" with icon="edit" %}

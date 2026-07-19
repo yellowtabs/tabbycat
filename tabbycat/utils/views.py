@@ -3,6 +3,7 @@ import logging
 
 from django.contrib import messages
 from django.core.exceptions import ImproperlyConfigured
+from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import modelformset_factory
 from django.http import HttpResponseRedirect
 from django.urls import reverse_lazy
@@ -63,7 +64,7 @@ class VueTableTemplateView(TemplateView):
         tables = self.get_tables()
 
         tables_dicts = [tb.jsondict() for tb in tables if tb is not None]
-        kwargs["tables_data"] = json.dumps(tables_dicts)
+        kwargs["tables_data"] = json.dumps(tables_dicts, cls=DjangoJSONEncoder)
 
         kwargs["tables_count"] = list(range(len(tables)))
         kwargs["tables_orientation"] = self.tables_orientation

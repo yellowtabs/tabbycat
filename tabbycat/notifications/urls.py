@@ -6,4 +6,7 @@ urlpatterns = [
     path('send-test-email/',
         views.TestEmailView.as_view(),
         name='notifications-test-email'),
+    path('ses-event-webhook/',
+        views.YellowTabsSesEventWebhookView.as_view(),
+        name='notifications-yellowtabs-ses-event-webhook'),
 ]

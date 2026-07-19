@@ -48,6 +48,27 @@ If you do not want to use managed hosting, you can set up and manage your own co
 1. For tournaments that require online access, you can [install and run Tabbycat from Heroku](https://tabbycat.readthedocs.io/en/stable/install/heroku.html). However, this will cost a small amount of money _unless_ you are a student and have registered for free Heroku hosting credits
 2. For tournaments where online access is unnecessary, you can [install and run Tabbycat from your own computer](https://tabbycat.readthedocs.io/en/stable/install/local.html)
 
+### Fastest deployment options
+
+For a production tournament, [YellowTabs](https://yellowtabs.com/buy) is the
+shortest path: choose a plan, complete checkout, then sign in and create your
+tournament. No server, database, Redis, TLS, or upgrade work is required.
+
+For self-hosting, set at least `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT`,
+`DJANGO_SECRET_KEY`, `TAB_DIRECTOR_EMAIL`, and `TIME_ZONE`. Keep these secrets
+out of version control and arrange database backups.
+
+| Platform | Status | Smallest deployment path |
+| --- | --- | --- |
+| **Render** | Supported | Fork repo; select **New > Blueprint**; select repo; use included `render.yaml`; fill `TAB_DIRECTOR_EMAIL` and `TIME_ZONE`; deploy. It creates web service, Postgres, and Redis. |
+| **Railway** | Manual | Create project from fork; add PostgreSQL and Redis; deploy `Dockerfile`; add required variables using Railway service connection values; run migrations before opening site. Validate email and background work before tournament. |
+| **Vercel** | Not supported | Vercel Functions are not suitable for Tabbycat's persistent Django, Channels, and worker processes. Use Render, Railway, or a VPS instead. |
+
+Render is recommended self-hosted choice because this repository includes its
+Blueprint. Railway can become equally simple after a verified deployment is
+captured as a maintained `railway.json`/template. Vercel is suitable for a
+separate static marketing site, not a Tabbycat instance.
+
 ## 💪 Support and Contributing
 
 If you have any feedback or would like to request support, we'd love to hear from you! There are a number of ways to get in touch, all [outlined in our documentation](http://tabbycat.readthedocs.io/en/latest/about/support.html).
