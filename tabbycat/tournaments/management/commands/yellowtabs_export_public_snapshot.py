@@ -14,6 +14,7 @@ from collections import deque
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from django.test import Client, override_settings
@@ -68,12 +69,17 @@ class Command(BaseCommand):
                 seen.add(url)
                 if len(seen) > MAX_ENTRIES:
                     raise CommandError("snapshot exceeds response limit")
+                # Each page is rendered as a new cookie-free visitor. A public
+                # template may mint a CSRF cookie while rendering a form; its
+                # Set-Cookie header is never serialized into the bundle.
+                client.cookies.clear()
                 response = client.get(url, HTTP_ACCEPT_LANGUAGE="en")
                 # Snapshot gateway rejects cookie-bearing requests before lookup.
                 # Django's anonymous pages commonly still declare Vary: Cookie;
-                # no Set-Cookie response means this cookie-free representation is
-                # safe to publish.
-                if response.cookies or response.status_code >= 400:
+                # A CSRF-only response remains anonymous. Session or any other
+                # response cookie rejects the page.
+                unsafe_cookies = set(response.cookies) - {settings.CSRF_COOKIE_NAME}
+                if unsafe_cookies or response.status_code >= 400:
                     continue
                 body = bytes(response.content) if not response.streaming else b""
                 if len(body) > MAX_RESPONSE_BYTES:
