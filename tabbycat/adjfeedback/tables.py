@@ -33,10 +33,11 @@ class FeedbackTableBuilder(TabbycatTableBuilder):
     def get_formatted_adj_score(score, strong=False):
         if score is None:
             return _('N/A')
+        value = ('%.3f' % score).rstrip('0').rstrip('.')
+        value = value if '.' in value else value + '.0'
         if strong is True:
-            return '<strong>%0.1f</strong>' % score
-        else:
-            return '%0.1f' % score
+            return '<strong>%s</strong>' % value
+        return value
 
     def add_weighted_score_columns(self, adjudicators, scores):
         overall_header = {
@@ -108,7 +109,7 @@ class FeedbackTableBuilder(TabbycatTableBuilder):
             'tooltip': _("The standard deviation of this adjudicator's current scores; with larger numbers meaning less consistent feedback scores."),
         }
         diff_data = [{
-            'text': '%0.1f' % adj.feedback_variance if adj.feedback_variance is not None else '',
+            'text': self.get_formatted_adj_score(adj.feedback_variance) if adj.feedback_variance is not None else '',
             'tooltip': _("The standard deviation of this adjudicator's current scores"),
         } for adj in adjudicators]
 
