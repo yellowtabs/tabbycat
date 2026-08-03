@@ -1,7 +1,157 @@
 {% extends "base.html" %}
-{% load debate_tags %}
+{% load debate_tags i18n %}
 
 {% block content %}
+
+<!-- YELLOWTABS-CHECKIN-SEARCH -->
+<style>.yt-checkin-match { background: #fff3bf; border-radius: .15rem; padding: 0 .08em; }</style>
+<div class="yt-checkin-search mb-3" role="search">
+  <label class="sr-only" for="yt-checkin-search-input">{% trans "Search check-ins" %}</label>
+  <div class="input-group">
+    <div class="input-group-prepend" aria-hidden="true"><span class="input-group-text"><i data-feather="search"></i></span></div>
+    <input id="yt-checkin-search-input" class="form-control" type="search"
+           placeholder="{% trans "Start typing to search" %}" autocomplete="off">
+    <div class="input-group-append">
+      <button id="yt-checkin-search-clear" class="btn btn-outline-secondary" type="button" hidden>{% trans "Clear" %}</button>
+    </div>
+  </div>
+  <small id="yt-checkin-search-status" class="form-text text-muted" aria-live="polite"></small>
+</div>
+<script>
+  (function () {
+    document.addEventListener('DOMContentLoaded', function () {
+    var parameter = 'checkin_search';
+    var input = document.getElementById('yt-checkin-search-input');
+    var clear = document.getElementById('yt-checkin-search-clear');
+    var status = document.getElementById('yt-checkin-search-status');
+    var mount = document.getElementById('vueMount');
+    if (!input || !clear || !status || !mount) return;
+    var observer;
+
+    var initial = new URLSearchParams(window.location.search).get(parameter) || '';
+    input.value = initial;
+
+    function updateUrl(value) {
+      var url = new URL(window.location.href);
+      if (value) url.searchParams.set(parameter, value);
+      else url.searchParams.delete(parameter);
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+
+    function normalise(value) {
+      return value.toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    }
+
+    function scoreName(name, query) {
+      if (name === query) return 0;
+      if (name.indexOf(query) === 0) return 1;
+      var tokens = query.split(' ');
+      if (tokens.every(function (token) { return name.split(' ').some(function (word) { return word.indexOf(token) === 0; }); })) return 2;
+      if (tokens.every(function (token) { return name.indexOf(token) !== -1; })) return 3;
+      return null;
+    }
+
+    function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+    function clearHighlight(label) {
+      label.querySelectorAll('.yt-checkin-match').forEach(function (mark) {
+        mark.replaceWith(document.createTextNode(mark.textContent));
+      });
+      label.normalize();
+    }
+
+    function highlight(label, terms) {
+      var text = label.textContent;
+      if (!terms.length) return;
+      var pattern = new RegExp('(' + terms.map(escapeRegExp).join('|') + ')', 'gi');
+      var fragment = document.createDocumentFragment();
+      text.split(pattern).forEach(function (part, index) {
+        if (index % 2) {
+          var mark = document.createElement('mark');
+          mark.className = 'yt-checkin-match';
+          mark.textContent = part;
+          fragment.appendChild(mark);
+        } else {
+          fragment.appendChild(document.createTextNode(part));
+        }
+      });
+      label.textContent = '';
+      label.appendChild(fragment);
+    }
+
+    function apply() {
+      var query = normalise(input.value);
+      var terms = input.value.trim().split(/\s+/).filter(Boolean);
+      var cards = mount.querySelectorAll('.card');
+      var visible = 0;
+      clear.hidden = !input.value;
+      if (observer) observer.disconnect();
+
+      var rankedCards = [];
+      cards.forEach(function (card) {
+        var people = card.querySelectorAll('.check-in-person');
+        if (!people.length) return;
+        var cardVisible = 0;
+        var rankedPeople = [];
+        people.forEach(function (person) {
+          var label = person.querySelector('.text-truncate');
+          if (label) clearHighlight(label);
+          var score = label ? scoreName(normalise(label.textContent), query) : null;
+          var match = !query || score !== null;
+          person.hidden = !match;
+          if (match) {
+            cardVisible += 1;
+            if (label && query) highlight(label, terms);
+            rankedPeople.push({ person: person, score: score === null ? 4 : score });
+          }
+        });
+        card.hidden = cardVisible === 0;
+        visible += cardVisible;
+        if (query && rankedPeople.length) {
+          rankedPeople.sort(function (a, b) { return a.score - b.score; });
+          rankedPeople.forEach(function (item) { item.person.parentNode.appendChild(item.person); });
+          rankedCards.push({ card: card, score: rankedPeople[0].score });
+        }
+      });
+      if (query) {
+        rankedCards.sort(function (a, b) { return a.score - b.score; });
+        rankedCards.forEach(function (item) { item.card.parentNode.appendChild(item.card); });
+      }
+
+      status.textContent = query ? visible + ' ' + (visible === 1 ? 'result' : 'results') : '';
+      if (observer) observer.observe(mount, { childList: true, subtree: true });
+    }
+
+    var queued = false;
+    function scheduleApply() {
+      if (queued) return;
+      queued = true;
+      window.requestAnimationFrame(function () { queued = false; apply(); });
+    }
+
+    input.addEventListener('input', function () {
+      updateUrl(input.value);
+      apply();
+    });
+    clear.addEventListener('click', function () { input.value = ''; updateUrl(''); apply(); input.focus(); });
+    document.addEventListener('keydown', function (event) {
+      var target = event.target;
+      var isTypingElsewhere = target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(target.tagName));
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1 ||
+          document.activeElement === input || isTypingElsewhere) return;
+      input.focus();
+      input.value += event.key;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      event.preventDefault();
+    });
+    observer = new MutationObserver(scheduleApply);
+    observer.observe(mount, { childList: true, subtree: true });
+    scheduleApply();
+    });
+  }());
+</script>
+
 
   <div id="vueMount">
     <check-in-status-container :initial-events="events"
