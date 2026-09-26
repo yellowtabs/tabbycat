@@ -1,0 +1,69 @@
+{% extends "feedback_cards_list.html" %}
+{% load i18n %}
+
+{% block page-subtitle %}
+  <form method="get" class="d-md-inline-block d-block ml-md-2">
+    <select id="latest-feedback-count" name="show" class="custom-select custom-select-sm"
+            aria-label="{% trans 'Number of feedbacks to show' %}"
+            data-total="{{ feedback_total }}" data-view-label="{% trans 'View' %}">
+      <option value="25" {% if feedback_portion == '25' %}selected{% endif %}>25%</option>
+      <option value="50" {% if feedback_portion == '50' %}selected{% endif %}>50%</option>
+      <option value="75" {% if feedback_portion == '75' %}selected{% endif %}>75%</option>
+      <option value="all" {% if feedback_portion == 'all' %}selected{% endif %}>{% trans "View all feedback" %}</option>
+    </select>
+    <noscript><button type="submit" class="btn btn-sm btn-outline-primary">{% trans "View" %}</button></noscript>
+  </form>
+{% endblock page-subtitle %}
+
+{% block js %}
+  {{ block.super }}
+  <script>
+    const feedbackCountSelect = document.getElementById('latest-feedback-count');
+    const feedbackTotal = Number(feedbackCountSelect.dataset.total);
+    for (const option of feedbackCountSelect.options) {
+      if (option.value !== 'all') {
+        option.textContent = `${feedbackCountSelect.dataset.viewLabel} ${Math.ceil(feedbackTotal * Number(option.value) / 100)}`;
+      }
+    }
+    feedbackCountSelect.addEventListener('change', () => feedbackCountSelect.form.submit());
+
+    const feedbackCards = document.getElementById('feedback-cards');
+    let feedbackActionPending = false;
+    feedbackCards.addEventListener('submit', async (event) => {
+      const form = event.target;
+      if (!form.matches('form[data-feedback-action]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (feedbackActionPending) return;
+
+      feedbackActionPending = true;
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      window.jQuery?.(feedbackCards).find('[data-toggle="tooltip"]').tooltip('dispose');
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error('Feedback update failed');
+        const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const updatedCards = page.getElementById('feedback-cards');
+        if (!updatedCards) {
+          window.location.assign(response.url);
+          return;
+        }
+        feedbackCards.innerHTML = updatedCards.innerHTML;
+        const messages = page.getElementById('messages-container');
+        if (messages) document.getElementById('messages-container').innerHTML = messages.innerHTML;
+        window.jQuery?.(feedbackCards).find('[data-toggle="tooltip"]').tooltip({ html: true });
+        window.feather?.replace();
+      } catch (error) {
+        window.location.reload();
+      } finally {
+        feedbackActionPending = false;
+        button.disabled = false;
+      }
+    }, true);
+  </script>
+{% endblock js %}

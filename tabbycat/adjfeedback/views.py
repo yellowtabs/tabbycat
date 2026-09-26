@@ -20,6 +20,7 @@ from participants.prefetch import populate_feedback_scores
 from participants.templatetags.team_name_for_data_entry import team_name_for_data_entry
 from registration.views import CustomQuestionFormsetView
 from results.mixins import PublicSubmissionFieldsMixin, TabroomSubmissionFieldsMixin
+from results.models import TeamScoreByAdj
 from results.prefetch import populate_wins_for_debateteams
 from tournaments.mixins import (PersonalizablePublicTournamentPageMixin, PublicTournamentPageMixin, RoundMixin,
     SingleObjectByRandomisedUrlMixin, SingleObjectFromTournamentMixin, TournamentMixin)
@@ -218,6 +219,31 @@ class FeedbackMixin(TournamentMixin):
         populate_debate_adjudicators(feedbacks)
         populate_wins_for_debateteams([f.source_team for f in feedbacks if f.source_team is not None])
 
+        team_feedbacks = [f for f in feedbacks if f.source_team is not None]
+        teams_in_debate = self.tournament.pref('teams_in_debate') if team_feedbacks else None
+        if teams_in_debate == 2:
+            debate_adj_ids = {f._debateadj.id for f in team_feedbacks if hasattr(f, '_debateadj')}
+            team_ids = {f.source_team_id for f in team_feedbacks}
+            calls = TeamScoreByAdj.objects.filter(
+                ballot_submission__confirmed=True,
+                debate_adjudicator_id__in=debate_adj_ids,
+                debate_team_id__in=team_ids,
+            ).values_list('debate_team_id', 'debate_adjudicator_id', 'win')
+            calls_by_pair = {(team_id, adj_id): win for team_id, adj_id, win in calls}
+            for feedback in team_feedbacks:
+                debate_adj = getattr(feedback, '_debateadj', None)
+                feedback.adjudicator_team_win = calls_by_pair.get(
+                    (feedback.source_team_id, debate_adj.id)) if debate_adj else None
+        for feedback in team_feedbacks:
+            team = feedback.source_team
+            if teams_in_debate == 4:
+                feedback.team_result_class = {
+                    3: 'success', 2: 'primary', 1: 'warning', 0: 'danger',
+                }.get(team.points, 'secondary')
+            else:
+                feedback.team_result_class = ('success' if team.win is True else
+                    'danger' if team.win is False else 'secondary')
+
         # Can't prefetch an abstract model effectively; so get all answers...
         questions = list(self.tournament.adj_feedback_questions.prefetch_related('answer_set'))
         if self.only_comments:
@@ -280,12 +306,26 @@ class FeedbackCardsView(FeedbackMixin, AdministratorMixin, TournamentMixin, Temp
 class LatestFeedbackView(FeedbackCardsView):
     """View displaying the latest feedback."""
     page_title = gettext_lazy("Latest Feedback")
-    page_subtitle = gettext_lazy("(30 most recent)")
+    template_name = "latest_feedback.html"
     page_emoji = '🕗'
 
     def get_feedback_queryset(self):
         queryset = super().get_feedback_queryset()
-        return queryset.order_by('-timestamp')[:30]
+        self.feedback_total = queryset.count()
+        self.feedback_portion = self.request.GET.get('show', '25')
+        if self.feedback_portion not in ('25', '50', '75', 'all'):
+            self.feedback_portion = '25'
+        queryset = queryset.order_by('-timestamp', '-pk')
+        if self.feedback_portion == 'all':
+            return queryset
+        limit = (self.feedback_total * int(self.feedback_portion) + 99) // 100
+        return queryset[:limit]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['feedback_total'] = self.feedback_total
+        context['feedback_portion'] = self.feedback_portion
+        return context
 
 
 class CommentsFeedbackView(FeedbackCardsView):
@@ -794,7 +834,7 @@ class ConfirmFeedbackView(BaseFeedbackToggleView):
     edit_permission = Permission.EDIT_FEEDBACK_CONFIRM
 
     def feedback_result(self, feedback):
-        return _("confirmed") if feedback.confirmed else _("un-confirmed")
+        return _("confirmed") if feedback.confirmed else _("discarded")
 
     def modify_feedback(self, feedback):
         feedback.confirmed = not feedback.confirmed
@@ -808,7 +848,7 @@ class IgnoreFeedbackView(BaseFeedbackToggleView):
     edit_permission = Permission.EDIT_FEEDBACK_IGNORE
 
     def feedback_result(self, feedback):
-        return _("ignored") if feedback.ignored else _("un-ignored")
+        return _("ignored") if feedback.ignored else _("included")
 
     def modify_feedback(self, feedback):
         feedback.ignored = not feedback.ignored

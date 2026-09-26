@@ -102,11 +102,13 @@
             {% else %}
               {% block head-title %}{% endblock %}
             {% endif %}
-            {% if page_subtitle %}
-              <small class="text-muted d-md-inline d-block">{{ page_subtitle }}</small>
-            {% else %}
-              <small class="text-muted d-md-inline d-block">{% block sub-title %}{% endblock %}</small>
-            {% endif %}
+            {% block page-subtitle %}
+              {% if page_subtitle %}
+                <small class="text-muted d-md-inline d-block">{{ page_subtitle }}</small>
+              {% else %}
+                <small class="text-muted d-md-inline d-block">{% block sub-title %}{% endblock %}</small>
+              {% endif %}
+            {% endblock page-subtitle %}
           </div>
 
         </div>
