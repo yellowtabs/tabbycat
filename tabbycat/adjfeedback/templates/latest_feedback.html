@@ -57,16 +57,21 @@
 {% endblock content %}
 
 {% block feedback-cards-content %}
-  {% for primary in feedback_groups %}
-    {% if primary_group != 'none' %}
-      <div class="col-12 mt-2 mb-3"><h3 class="h5 border-bottom pb-2">{{ primary.label }}</h3></div>
+  {% for round_group in feedback_groups %}
+    {% if feedback_round == 'all' %}
+      <div class="col-12 mb-3"><h2 class="h4 border-bottom pb-2">{{ round_group.label }}</h2></div>
     {% endif %}
-    {% for secondary in primary.secondary %}
-      {% if secondary_group != 'none' %}
-        <div class="col-12 mb-2"><h4 class="h6 text-secondary">{{ secondary.label }}</h4></div>
+    {% for primary in round_group.primary %}
+      {% if primary_group != 'none' %}
+        <div class="col-12 mt-2 mb-3"><h3 class="h5 border-bottom pb-2">{{ primary.label }}</h3></div>
       {% endif %}
-      {% for feedback in secondary.feedbacks %}
-        <div class="col-md-6 col-12 mb-4">{% include 'feedback_card.html' %}</div>
+      {% for secondary in primary.secondary %}
+        {% if secondary_group != 'none' %}
+          <div class="col-12 mb-2"><h4 class="h6 text-secondary">{{ secondary.label }}</h4></div>
+        {% endif %}
+        {% for feedback in secondary.feedbacks %}
+          <div class="col-md-6 col-12 mb-4">{% include 'feedback_card.html' %}</div>
+        {% endfor %}
       {% endfor %}
     {% endfor %}
   {% endfor %}

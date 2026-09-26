@@ -358,21 +358,30 @@ class LatestFeedbackView(FeedbackCardsView):
         return None, None
 
     def group_feedbacks(self, feedbacks):
-        primary_groups = OrderedDict()
+        round_groups = OrderedDict()
         for feedback in feedbacks:
+            round_ = feedback.round
+            round_group = round_groups.setdefault(round_.pk, {
+                'label': round_.name, 'seq': round_.seq, 'primary': OrderedDict(),
+            })
             primary_key, primary_label = self.group_value(feedback, self.primary_group)
             secondary_key, secondary_label = self.group_value(feedback, self.secondary_group)
-            primary = primary_groups.setdefault(primary_key, {
+            primary = round_group['primary'].setdefault(primary_key, {
                 'label': primary_label, 'secondary': OrderedDict(),
             })
             secondary = primary['secondary'].setdefault(secondary_key, {
                 'label': secondary_label, 'feedbacks': [],
             })
             secondary['feedbacks'].append(feedback)
-        return [
-            {'label': group['label'], 'secondary': list(group['secondary'].values())}
-            for group in primary_groups.values()
-        ]
+        rounds = list(round_groups.values())
+        if self.feedback_order in ('newest', 'oldest'):
+            rounds.sort(key=lambda group: group['seq'], reverse=self.feedback_order == 'newest')
+        for round_group in rounds:
+            round_group['primary'] = [
+                {'label': group['label'], 'secondary': list(group['secondary'].values())}
+                for group in round_group['primary'].values()
+            ]
+        return rounds
 
     def get_feedback_queryset(self):
         self.get_options()

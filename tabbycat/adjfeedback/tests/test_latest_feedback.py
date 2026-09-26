@@ -65,18 +65,33 @@ class LatestFeedbackViewTests(SimpleTestCase):
 
     def test_grouping_keeps_order_and_source_types_separate(self):
         venue = SimpleNamespace(pk=1, name='Auditorium')
+        old_round = SimpleNamespace(pk=1, name='Round 1', seq=1)
+        new_round = SimpleNamespace(pk=2, name='Round 2', seq=2)
         team = SimpleNamespace(pk=2, short_name='Team A')
         adjudicator = SimpleNamespace(pk=2, name='Judge A')
         feedbacks = [
-            SimpleNamespace(debate=SimpleNamespace(venue=venue), source_team_id=2,
+            SimpleNamespace(round=old_round, debate=SimpleNamespace(venue=venue), source_team_id=2,
                 source_team=SimpleNamespace(team=team), source_adjudicator_id=None),
-            SimpleNamespace(debate=SimpleNamespace(venue=venue), source_team_id=None,
+            SimpleNamespace(round=old_round, debate=SimpleNamespace(venue=venue), source_team_id=None,
                 source_adjudicator_id=2,
                 source_adjudicator=SimpleNamespace(adjudicator=adjudicator)),
+            SimpleNamespace(round=new_round, debate=SimpleNamespace(venue=venue), source_team_id=2,
+                source_team=SimpleNamespace(team=team), source_adjudicator_id=None),
         ]
         view = LatestFeedbackView()
         view.primary_group = 'venue'
         view.secondary_group = 'source'
+        view.feedback_order = 'newest'
         groups = view.group_feedbacks(feedbacks)
-        self.assertEqual(groups[0]['label'], 'Auditorium')
-        self.assertEqual([g['label'] for g in groups[0]['secondary']], ['Team A', 'Judge A'])
+        self.assertEqual([g['label'] for g in groups], ['Round 2', 'Round 1'])
+        self.assertEqual([g['primary'][0]['label'] for g in groups], ['Auditorium', 'Auditorium'])
+        self.assertEqual([g['label'] for g in groups[1]['primary'][0]['secondary']],
+            ['Team A', 'Judge A'])
+
+        view.feedback_order = 'oldest'
+        self.assertEqual([g['label'] for g in view.group_feedbacks(feedbacks)],
+            ['Round 1', 'Round 2'])
+
+        view.feedback_order = 'score_desc'
+        self.assertEqual([g['label'] for g in view.group_feedbacks(feedbacks)],
+            ['Round 1', 'Round 2'])
