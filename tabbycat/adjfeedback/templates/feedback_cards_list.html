@@ -3,13 +3,13 @@
 
 {% block content %}
   <div class="row" id="feedback-cards">
-
+    {% block feedback-cards-content %}
     {% for feedback in feedbacks %}
       <div class="col-md-6 col-12 mb-4">
         {% include 'feedback_card.html' %}
       </div>
     {% endfor %}
-
+    {% endblock feedback-cards-content %}
   </div>
 
   {% if not feedbacks %}

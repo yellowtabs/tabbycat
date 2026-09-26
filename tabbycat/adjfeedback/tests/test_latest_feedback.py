@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from django.test import RequestFactory, SimpleTestCase
 
@@ -8,11 +9,21 @@ from adjfeedback.views import FeedbackMixin, LatestFeedbackView
 class FeedbackQueryset:
     def __init__(self, total):
         self.total = total
+        self.filters = []
+        self.order = None
 
     def count(self):
         return self.total
 
+    def select_related(self, *fields):
+        return self
+
     def order_by(self, *fields):
+        self.order = fields
+        return self
+
+    def filter(self, condition):
+        self.filters.append(condition)
         return self
 
     def __getitem__(self, selection):
@@ -39,3 +50,33 @@ class LatestFeedbackViewTests(SimpleTestCase):
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=FeedbackQueryset(1)):
             self.assertEqual(view.get_feedback_queryset(), slice(None, 1))
         self.assertEqual(view.feedback_portion, '25')
+
+    def test_round_filter_and_score_order_apply_before_limit(self):
+        queryset = FeedbackQueryset(40)
+        view = LatestFeedbackView()
+        view.request = RequestFactory().get('/', {
+            'round': '5', 'order': 'score_desc', 'show': '50',
+        })
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
+            result = view.get_feedback_queryset()
+        self.assertEqual(result, slice(None, 20))
+        self.assertEqual(len(queryset.filters), 1)
+        self.assertEqual(queryset.order, ('-score', '-timestamp', '-pk'))
+
+    def test_grouping_keeps_order_and_source_types_separate(self):
+        venue = SimpleNamespace(pk=1, name='Auditorium')
+        team = SimpleNamespace(pk=2, short_name='Team A')
+        adjudicator = SimpleNamespace(pk=2, name='Judge A')
+        feedbacks = [
+            SimpleNamespace(debate=SimpleNamespace(venue=venue), source_team_id=2,
+                source_team=SimpleNamespace(team=team), source_adjudicator_id=None),
+            SimpleNamespace(debate=SimpleNamespace(venue=venue), source_team_id=None,
+                source_adjudicator_id=2,
+                source_adjudicator=SimpleNamespace(adjudicator=adjudicator)),
+        ]
+        view = LatestFeedbackView()
+        view.primary_group = 'venue'
+        view.secondary_group = 'source'
+        groups = view.group_feedbacks(feedbacks)
+        self.assertEqual(groups[0]['label'], 'Auditorium')
+        self.assertEqual([g['label'] for g in groups[0]['secondary']], ['Team A', 'Judge A'])

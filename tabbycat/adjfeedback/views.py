@@ -2,6 +2,7 @@ import csv
 import json
 import logging
 import math
+from collections import OrderedDict
 
 from django.contrib import messages
 from django.db.models import Count, F, Q
@@ -309,13 +310,82 @@ class LatestFeedbackView(FeedbackCardsView):
     template_name = "latest_feedback.html"
     page_emoji = '🕗'
 
-    def get_feedback_queryset(self):
-        queryset = super().get_feedback_queryset()
-        self.feedback_total = queryset.count()
-        self.feedback_portion = self.request.GET.get('show', '25')
+    GROUPINGS = ('none', 'venue', 'target', 'source')
+    ORDERINGS = {
+        'newest': ('-timestamp', '-pk'),
+        'oldest': ('timestamp', 'pk'),
+        'score_asc': ('score', '-timestamp', '-pk'),
+        'score_desc': ('-score', '-timestamp', '-pk'),
+    }
+
+    def get_options(self):
+        params = self.request.GET
+        self.feedback_portion = params.get('show', '25')
         if self.feedback_portion not in ('25', '50', '75', 'all'):
             self.feedback_portion = '25'
-        queryset = queryset.order_by('-timestamp', '-pk')
+        self.feedback_round = params.get('round', 'all')
+        if self.feedback_round != 'all' and (
+            not self.feedback_round.isascii() or not self.feedback_round.isdigit() or
+            len(self.feedback_round) > 18
+        ):
+            self.feedback_round = 'all'
+        self.primary_group = params.get('primary', 'venue')
+        if self.primary_group not in self.GROUPINGS:
+            self.primary_group = 'venue'
+        self.secondary_group = params.get('secondary', 'target')
+        if self.secondary_group not in self.GROUPINGS or self.secondary_group == self.primary_group:
+            self.secondary_group = 'none'
+        self.feedback_order = params.get('order', 'newest')
+        if self.feedback_order not in self.ORDERINGS:
+            self.feedback_order = 'newest'
+
+    @staticmethod
+    def group_value(feedback, grouping):
+        if grouping == 'venue':
+            venue = feedback.debate.venue
+            return (venue.pk, venue.name) if venue else (None, _("No venue"))
+        if grouping == 'target':
+            adjudicator = feedback.adjudicator
+            return adjudicator.pk, adjudicator.name
+        if grouping == 'source':
+            if feedback.source_team_id:
+                team = feedback.source_team.team
+                return ('team', team.pk), team.short_name
+            if feedback.source_adjudicator_id:
+                adjudicator = feedback.source_adjudicator.adjudicator
+                return ('adjudicator', adjudicator.pk), adjudicator.name
+            return None, _("Unknown source")
+        return None, None
+
+    def group_feedbacks(self, feedbacks):
+        primary_groups = OrderedDict()
+        for feedback in feedbacks:
+            primary_key, primary_label = self.group_value(feedback, self.primary_group)
+            secondary_key, secondary_label = self.group_value(feedback, self.secondary_group)
+            primary = primary_groups.setdefault(primary_key, {
+                'label': primary_label, 'secondary': OrderedDict(),
+            })
+            secondary = primary['secondary'].setdefault(secondary_key, {
+                'label': secondary_label, 'feedbacks': [],
+            })
+            secondary['feedbacks'].append(feedback)
+        return [
+            {'label': group['label'], 'secondary': list(group['secondary'].values())}
+            for group in primary_groups.values()
+        ]
+
+    def get_feedback_queryset(self):
+        self.get_options()
+        queryset = super().get_feedback_queryset().select_related(
+            'source_adjudicator__debate__venue',
+            'source_team__debate__venue',
+        )
+        if self.feedback_round != 'all':
+            round_filter = Q(source_team__debate__round_id=self.feedback_round) | Q(
+                source_adjudicator__debate__round_id=self.feedback_round)
+            queryset = queryset.filter(round_filter)
+        self.feedback_total = queryset.count()
+        queryset = queryset.order_by(*self.ORDERINGS[self.feedback_order])
         if self.feedback_portion == 'all':
             return queryset
         limit = (self.feedback_total * int(self.feedback_portion) + 99) // 100
@@ -325,6 +395,12 @@ class LatestFeedbackView(FeedbackCardsView):
         context = super().get_context_data(**kwargs)
         context['feedback_total'] = self.feedback_total
         context['feedback_portion'] = self.feedback_portion
+        context['feedback_round'] = self.feedback_round
+        context['primary_group'] = self.primary_group
+        context['secondary_group'] = self.secondary_group
+        context['feedback_order'] = self.feedback_order
+        context['rounds'] = Round.objects.filter(tournament=self.tournament)
+        context['feedback_groups'] = self.group_feedbacks(context['feedbacks'])
         return context
 
 
