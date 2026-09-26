@@ -2,7 +2,9 @@
 {% load i18n %}
 
 {% block content %}
-  <form method="get" id="latest-feedback-filters" class="card card-body mb-4">
+  <form method="get" id="latest-feedback-filters" class="card card-body mb-4"
+        data-loading="{% trans 'Loading feedback for fast filtering…' %}"
+        data-empty="{% trans 'No feedback matches these filters.' %}">
     <div class="form-row align-items-end">
       <div class="col-sm-6 col-lg mb-2 mb-lg-0">
         <label for="latest-feedback-round" class="small text-secondary mb-1">{% trans "Round" %}</label>
@@ -53,6 +55,7 @@
     </div>
     <noscript><button type="submit" class="btn btn-sm btn-outline-primary mt-2">{% trans "Apply" %}</button></noscript>
   </form>
+  <div id="latest-feedback-status" class="small text-secondary mb-2" role="status" aria-live="polite"></div>
   {{ block.super }}
 {% endblock content %}
 
@@ -80,25 +83,214 @@
 {% block js %}
   {{ block.super }}
   <script>
-    const feedbackCountSelect = document.getElementById('latest-feedback-count');
-    const feedbackTotal = Number(feedbackCountSelect.dataset.total);
-    for (const option of feedbackCountSelect.options) {
-      if (option.value !== 'all') {
-        option.textContent = `${feedbackCountSelect.dataset.viewLabel} ${Math.ceil(feedbackTotal * Number(option.value) / 100)}`;
-      }
-    }
     const feedbackFilters = document.getElementById('latest-feedback-filters');
+    const feedbackStatus = document.getElementById('latest-feedback-status');
+    const feedbackCards = document.getElementById('feedback-cards');
+    const feedbackCountSelect = document.getElementById('latest-feedback-count');
+    const roundSelect = document.getElementById('latest-feedback-round');
     const primarySelect = document.getElementById('latest-feedback-primary');
     const secondarySelect = document.getElementById('latest-feedback-secondary');
+    const orderSelect = document.getElementById('latest-feedback-order');
+    const filterSelects = [roundSelect, primarySelect, secondarySelect, orderSelect, feedbackCountSelect];
+    let allCards = null;
+    let cachePromise = null;
+    let cacheController = null;
+    let cacheRevision = 0;
+    let selectionRevision = 0;
+    let feedbackActionPending = false;
+
+    function updateCountOptions(total) {
+      for (const option of feedbackCountSelect.options) {
+        if (option.value !== 'all') {
+          option.textContent = `${feedbackCountSelect.dataset.viewLabel} ${Math.ceil(total * Number(option.value) / 100)}`;
+        }
+      }
+    }
+    updateCountOptions(Number(feedbackCountSelect.dataset.total));
+
+    function invalidateCache() {
+      cacheRevision += 1;
+      cacheController?.abort();
+      allCards = null;
+      cachePromise = null;
+      cacheController = null;
+    }
+
+    function loadAllCards() {
+      if (allCards) return Promise.resolve(allCards);
+      if (cachePromise) return cachePromise;
+      const revision = cacheRevision;
+      const url = new URL(window.location.pathname, window.location.origin);
+      url.searchParams.set('cards', '1');
+      url.searchParams.set('round', 'all');
+      url.searchParams.set('show', 'all');
+      const controller = new AbortController();
+      cacheController = controller;
+      cachePromise = fetch(url, { credentials: 'same-origin', signal: controller.signal })
+        .then((response) => {
+          if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) {
+            throw new Error('Feedback cache unavailable');
+          }
+          return response.json();
+        })
+        .then((payload) => {
+          if (revision !== cacheRevision || !Array.isArray(payload.cards)) {
+            throw new Error('Feedback cache expired');
+          }
+          allCards = payload.cards;
+          return allCards;
+        })
+        .finally(() => {
+          if (revision === cacheRevision) {
+            cachePromise = null;
+            cacheController = null;
+          }
+        });
+      return cachePromise;
+    }
+
+    function selectedOptions() {
+      if (primarySelect.value === secondarySelect.value) secondarySelect.value = 'none';
+      return {
+        round: roundSelect.value,
+        primary: primarySelect.value,
+        secondary: secondarySelect.value,
+        order: orderSelect.value,
+        show: feedbackCountSelect.value,
+      };
+    }
+
+    function updateUrl() {
+      const url = new URL(window.location.href);
+      for (const [key, value] of Object.entries(selectedOptions())) url.searchParams.set(key, value);
+      window.history.pushState(null, '', url);
+    }
+
+    function restoreOptionsFromUrl() {
+      const params = new URL(window.location.href).searchParams;
+      const defaults = { round: 'all', primary: 'venue', secondary: 'target', order: 'newest', show: '25' };
+      for (const select of filterSelects) {
+        const value = params.get(select.name);
+        select.value = value && Array.from(select.options).some((option) => option.value === value)
+          ? value : defaults[select.name];
+      }
+      selectedOptions();
+    }
+
+    function compareCards(a, b, order) {
+      if (order === 'oldest') return a.timestamp - b.timestamp || a.id - b.id;
+      if (order === 'score_asc') return a.score - b.score || b.timestamp - a.timestamp || b.id - a.id;
+      if (order === 'score_desc') return b.score - a.score || b.timestamp - a.timestamp || b.id - a.id;
+      return b.timestamp - a.timestamp || b.id - a.id;
+    }
+
+    function groupCards(cards, options) {
+      const rounds = new Map();
+      for (const card of cards) {
+        if (!rounds.has(card.round.id)) rounds.set(card.round.id, {
+          label: card.round.name, seq: card.round.seq, primary: new Map(),
+        });
+        const round = rounds.get(card.round.id);
+        const primary = options.primary === 'none' ? { id: null, label: null } : card[options.primary];
+        const secondary = options.secondary === 'none' ? { id: null, label: null } : card[options.secondary];
+        const primaryKey = JSON.stringify(primary.id);
+        const secondaryKey = JSON.stringify(secondary.id);
+        if (!round.primary.has(primaryKey)) round.primary.set(primaryKey, {
+          label: primary.label, secondary: new Map(),
+        });
+        const primaryGroup = round.primary.get(primaryKey);
+        if (!primaryGroup.secondary.has(secondaryKey)) primaryGroup.secondary.set(secondaryKey, {
+          label: secondary.label, cards: [],
+        });
+        primaryGroup.secondary.get(secondaryKey).cards.push(card);
+      }
+      const grouped = Array.from(rounds.values());
+      if (options.order === 'newest') grouped.sort((a, b) => b.seq - a.seq);
+      if (options.order === 'oldest') grouped.sort((a, b) => a.seq - b.seq);
+      return grouped;
+    }
+
+    function appendHeading(parent, tag, columnClass, headingClass, label) {
+      const column = document.createElement('div');
+      column.className = columnClass;
+      const heading = document.createElement(tag);
+      heading.className = headingClass;
+      heading.textContent = label;
+      column.appendChild(heading);
+      parent.appendChild(column);
+    }
+
+    function renderSelection() {
+      if (!allCards) return;
+      const options = selectedOptions();
+      const filtered = allCards.filter((card) => options.round === 'all' || String(card.round.id) === options.round);
+      updateCountOptions(filtered.length);
+      filtered.sort((a, b) => compareCards(a, b, options.order));
+      const limit = options.show === 'all' ? filtered.length : Math.ceil(filtered.length * Number(options.show) / 100);
+      const rounds = groupCards(filtered.slice(0, limit), options);
+      const fragment = document.createDocumentFragment();
+      for (const round of rounds) {
+        if (options.round === 'all') appendHeading(fragment, 'h2', 'col-12 mb-3', 'h4 border-bottom pb-2', round.label);
+        for (const primary of round.primary.values()) {
+          if (options.primary !== 'none') appendHeading(fragment, 'h3', 'col-12 mt-2 mb-3', 'h5 border-bottom pb-2', primary.label);
+          for (const secondary of primary.secondary.values()) {
+            if (options.secondary !== 'none') appendHeading(fragment, 'h4', 'col-12 mb-2', 'h6 text-secondary', secondary.label);
+            for (const card of secondary.cards) {
+              const column = document.createElement('div');
+              column.className = 'col-md-6 col-12 mb-4';
+              column.innerHTML = card.html;
+              fragment.appendChild(column);
+            }
+          }
+        }
+      }
+      if (!rounds.length) {
+        const empty = document.createElement('div');
+        empty.className = 'col-12 alert alert-info';
+        empty.textContent = feedbackFilters.dataset.empty;
+        fragment.appendChild(empty);
+      }
+      window.jQuery?.(feedbackCards).find('[data-toggle="tooltip"]').tooltip('dispose');
+      feedbackCards.replaceChildren(fragment);
+      document.getElementById('feedback-empty')?.remove();
+      window.jQuery?.(feedbackCards).find('[data-toggle="tooltip"]').tooltip({ html: true });
+      window.feather?.replace();
+      feedbackStatus.textContent = '';
+    }
+
+    async function applyFilters() {
+      const revision = ++selectionRevision;
+      if (!allCards) feedbackStatus.textContent = feedbackFilters.dataset.loading;
+      try {
+        await loadAllCards();
+        if (revision === selectionRevision && !feedbackActionPending) renderSelection();
+      } catch (error) {
+        if (revision === selectionRevision && !feedbackActionPending) feedbackFilters.submit();
+      }
+    }
+
     feedbackFilters.addEventListener('change', (event) => {
+      if (feedbackActionPending) return;
       if (event.target === primarySelect && secondarySelect.value === primarySelect.value) {
         secondarySelect.value = 'none';
       }
-      feedbackFilters.submit();
+      updateUrl();
+      applyFilters();
     });
 
-    const feedbackCards = document.getElementById('feedback-cards');
-    let feedbackActionPending = false;
+    window.addEventListener('popstate', () => {
+      restoreOptionsFromUrl();
+      applyFilters();
+    });
+
+    const prefetch = () => loadAllCards().catch(() => {});
+    const schedulePrefetch = () => {
+      if ('requestIdleCallback' in window) window.requestIdleCallback(prefetch, { timeout: 2000 });
+      else window.setTimeout(prefetch, 250);
+    };
+    if (document.readyState === 'complete') schedulePrefetch();
+    else window.addEventListener('load', schedulePrefetch, { once: true });
+
     feedbackCards.addEventListener('submit', async (event) => {
       const form = event.target;
       if (!form.matches('form[data-feedback-action]')) return;
@@ -107,8 +299,12 @@
       if (feedbackActionPending) return;
 
       feedbackActionPending = true;
+      selectionRevision += 1;
+      invalidateCache();
+      filterSelects.forEach((select) => { select.disabled = true; });
       const button = form.querySelector('button[type="submit"]');
       button.disabled = true;
+      form.querySelector('input[name="next"]').value = window.location.pathname + window.location.search;
       window.jQuery?.(feedbackCards).find('[data-toggle="tooltip"]').tooltip('dispose');
       try {
         const response = await fetch(form.action, {
@@ -126,13 +322,17 @@
         feedbackCards.innerHTML = updatedCards.innerHTML;
         const messages = page.getElementById('messages-container');
         if (messages) document.getElementById('messages-container').innerHTML = messages.innerHTML;
+        const count = page.getElementById('latest-feedback-count');
+        if (count) updateCountOptions(Number(count.dataset.total));
         window.jQuery?.(feedbackCards).find('[data-toggle="tooltip"]').tooltip({ html: true });
         window.feather?.replace();
+        prefetch();
       } catch (error) {
         window.location.reload();
       } finally {
         feedbackActionPending = false;
         button.disabled = false;
+        filterSelects.forEach((select) => { select.disabled = false; });
       }
     }, true);
   </script>

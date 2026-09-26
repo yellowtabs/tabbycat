@@ -14,8 +14,10 @@
 
   {% if not feedbacks %}
     <!-- Can't use empty as card-columns div messes up the alert -->
-    {% trans "No feedback has been submitted yet" as message %}
-    {% include "components/alert.html" with type="info" %}
+    <div id="feedback-empty">
+      {% trans "No feedback has been submitted yet" as message %}
+      {% include "components/alert.html" with type="info" %}
+    </div>
   {% endif %}
 
 {% endblock content %}

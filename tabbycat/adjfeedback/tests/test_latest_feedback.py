@@ -1,5 +1,7 @@
 from unittest.mock import patch
 from types import SimpleNamespace
+from datetime import datetime, timezone
+import json
 
 from django.test import RequestFactory, SimpleTestCase
 
@@ -31,6 +33,32 @@ class FeedbackQueryset:
 
 
 class LatestFeedbackViewTests(SimpleTestCase):
+    def test_card_payload_contains_sort_and_group_metadata(self):
+        feedback = SimpleNamespace(
+            pk=9, round=SimpleNamespace(pk=2, name='Round 2', seq=2),
+            debate=SimpleNamespace(venue=SimpleNamespace(pk=3, name='Auditorium')),
+            adjudicator=SimpleNamespace(pk=4, name='Judge A'),
+            source_team_id=5, source_team=SimpleNamespace(team=SimpleNamespace(pk=5, short_name='Team A')),
+            source_adjudicator_id=None, score=7.5,
+            timestamp=datetime(2026, 9, 26, tzinfo=timezone.utc),
+        )
+        view = LatestFeedbackView()
+        view._tournament_from_url = SimpleNamespace()
+        request = RequestFactory().get('/feedback/latest/', {'cards': '1', 'show': 'all'})
+        view.request = request
+        with patch.object(view, 'get_feedbacks', return_value=[feedback]), \
+                patch.object(view, 'get_score_thresholds', return_value={}), \
+                patch('adjfeedback.views.render_to_string', return_value='<div>Card</div>') as render:
+            response = view.get(request)
+        card = json.loads(response.content)['cards'][0]
+        self.assertEqual(response['Cache-Control'], 'private, no-store')
+        self.assertEqual(card['round'], {'id': 2, 'name': 'Round 2', 'seq': 2})
+        self.assertEqual(card['venue'], {'id': 3, 'label': 'Auditorium'})
+        self.assertEqual(card['source'], {'id': ['team', 5], 'label': 'Team A'})
+        self.assertEqual(card['score'], 7.5)
+        self.assertEqual(render.call_args.kwargs['request'], request)
+        self.assertEqual(render.call_args.args[1]['feedback_next_url'], request.path)
+
     def test_percentage_limits_and_all(self):
         for selection, expected in (
             ('25', 10), ('50', 20), ('75', 30), ('all', None),

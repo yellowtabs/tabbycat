@@ -109,7 +109,7 @@
             title="{% trans "Discarded feedback is not counted as having been submitted and does not affect this adjudicator's score." %}">
         <form method="POST" action="{% tournamenturl 'adjfeedback-confirm-feedback' feedback.id %}" class='text-secondary' data-feedback-action>
           {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input type="hidden" name="next" value="{{ feedback_next_url|default:request.get_full_path }}">
           <button type="submit" class="btn btn-link text-muted pl-3 p-0">
             <small>{% if feedback.confirmed %}{% trans "Discard" %}{% else %}{% trans "Confirm" %}{% endif %}</small>
           </button>
@@ -119,7 +119,7 @@
             title="{% trans "Ignored feedback is counted as having been submitted, but does not affect this adjudicator's score." %}">
         <form method="POST" action="{% tournamenturl 'adjfeedback-ignore-feedback' feedback.id %}" class='text-secondary' data-feedback-action>
           {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input type="hidden" name="next" value="{{ feedback_next_url|default:request.get_full_path }}">
           <button type="submit" class="btn btn-link text-muted p-0">
             <small>{% if feedback.ignored %}{% trans "Include" %}{% else %}{% trans "Ignore" %}{% endif %}</small>
           </button>

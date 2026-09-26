@@ -7,6 +7,7 @@ from collections import OrderedDict
 from django.contrib import messages
 from django.db.models import Count, F, Q
 from django.http import HttpResponse, JsonResponse
+from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import conditional_escape, escape
 from django.utils.translation import gettext as _, gettext_lazy, ngettext, ngettext_lazy
@@ -317,6 +318,36 @@ class LatestFeedbackView(FeedbackCardsView):
         'score_asc': ('score', '-timestamp', '-pk'),
         'score_desc': ('-score', '-timestamp', '-pk'),
     }
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get('cards') == '1':
+            feedbacks = self.get_feedbacks()
+            score_thresholds = self.get_score_thresholds()
+            cards = []
+            for feedback in feedbacks:
+                round_ = feedback.round
+                venue_key, venue_label = self.group_value(feedback, 'venue')
+                target_key, target_label = self.group_value(feedback, 'target')
+                source_key, source_label = self.group_value(feedback, 'source')
+                cards.append({
+                    'id': feedback.pk,
+                    'round': {'id': round_.pk, 'name': round_.name, 'seq': round_.seq},
+                    'venue': {'id': venue_key, 'label': venue_label},
+                    'target': {'id': target_key, 'label': target_label},
+                    'source': {'id': source_key, 'label': source_label},
+                    'score': feedback.score,
+                    'timestamp': round(feedback.timestamp.timestamp() * 1_000_000),
+                    'html': render_to_string('feedback_card.html', {
+                        'feedback': feedback,
+                        'tournament': self.tournament,
+                        'score_thresholds': score_thresholds,
+                        'feedback_next_url': request.path,
+                    }, request=request),
+                })
+            response = JsonResponse({'cards': cards})
+            response['Cache-Control'] = 'private, no-store'
+            return response
+        return super().get(request, *args, **kwargs)
 
     def get_options(self):
         params = self.request.GET
