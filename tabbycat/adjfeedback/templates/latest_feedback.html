@@ -64,16 +64,17 @@
       </div>
     </div>
     <div class="mt-3" id="latest-feedback-score-range"
-         data-floor="{{ score_floor|unlocalize }}" data-ceiling="{{ score_ceiling|unlocalize }}">
+         data-floor="{{ score_floor|unlocalize }}" data-ceiling="{{ score_ceiling|unlocalize }}"
+         data-step="{{ score_step|unlocalize }}" data-steps="{{ score_tick_count }}">
       <div class="d-flex justify-content-between small text-secondary mb-1">
         <span>{% trans "Feedback score" %}</span>
         <output id="latest-feedback-score-value" aria-live="polite"></output>
       </div>
       <div class="feedback-score-track">
         <div class="feedback-score-track-fill" id="latest-feedback-score-fill"></div>
-        <input type="range" id="latest-feedback-score-min" name="score_min" min="0" max="100" step="1"
+        <input type="range" id="latest-feedback-score-min" name="score_min" min="0" max="{{ score_tick_count }}" step="1"
                value="{{ score_min_tick }}" aria-label="{% trans 'Minimum feedback score' %}">
-        <input type="range" id="latest-feedback-score-max" name="score_max" min="0" max="100" step="1"
+        <input type="range" id="latest-feedback-score-max" name="score_max" min="0" max="{{ score_tick_count }}" step="1"
                value="{{ score_max_tick }}" aria-label="{% trans 'Maximum feedback score' %}">
       </div>
     </div>
@@ -122,6 +123,8 @@
     const scoreFill = document.getElementById('latest-feedback-score-fill');
     const scoreFloor = Number(scoreRange.dataset.floor);
     const scoreCeiling = Number(scoreRange.dataset.ceiling);
+    const scoreStep = Number(scoreRange.dataset.step);
+    const scoreSteps = Number(scoreRange.dataset.steps);
     const filterDropdowns = [roundSelect, primarySelect, secondarySelect, orderSelect, feedbackCountSelect];
     const filterSelects = [...filterDropdowns, scoreMin, scoreMax];
     let allCards = null;
@@ -141,7 +144,7 @@
     updateCountOptions(Number(feedbackCountSelect.dataset.total));
 
     function scoreAt(tick) {
-      return scoreFloor + (scoreCeiling - scoreFloor) * tick / 100;
+      return Math.min(scoreFloor + scoreStep * tick, scoreCeiling);
     }
 
     function updateScoreRange(changed) {
@@ -152,10 +155,10 @@
       const min = Number(scoreMin.value);
       const max = Number(scoreMax.value);
       scoreValue.textContent = `${Number(scoreAt(min).toFixed(3))}–${Number(scoreAt(max).toFixed(3))}`;
-      scoreFill.style.left = `${min}%`;
-      scoreFill.style.width = `${max - min}%`;
-      scoreMin.style.zIndex = min === 100 ? '2' : '1';
-      scoreMax.style.zIndex = min === 100 ? '1' : '2';
+      scoreFill.style.left = `${scoreSteps ? min / scoreSteps * 100 : 0}%`;
+      scoreFill.style.width = `${scoreSteps ? (max - min) / scoreSteps * 100 : 0}%`;
+      scoreMin.style.zIndex = min === scoreSteps ? '2' : '1';
+      scoreMax.style.zIndex = min === scoreSteps ? '1' : '2';
     }
     updateScoreRange();
 
@@ -228,9 +231,9 @@
           ? value : defaults[select.name];
       }
       selectedOptions();
-      for (const [input, name, fallback] of [[scoreMin, 'score_min', 0], [scoreMax, 'score_max', 100]]) {
+      for (const [input, name, fallback] of [[scoreMin, 'score_min', 0], [scoreMax, 'score_max', scoreSteps]]) {
         const value = params.get(name);
-        input.value = value !== null && /^\d+$/.test(value) && Number(value) <= 100 ? value : fallback;
+        input.value = value !== null && /^\d+$/.test(value) && Number(value) <= scoreSteps ? value : fallback;
       }
       updateScoreRange(scoreMin);
     }
@@ -286,7 +289,7 @@
       const filtered = allCards.filter((card) =>
         (options.round === 'all' || String(card.round.id) === options.round) &&
         (options.score_min === '0' || card.score >= minScore) &&
-        (options.score_max === '100' || card.score <= maxScore));
+        (Number(options.score_max) === scoreSteps || card.score <= maxScore));
       updateCountOptions(filtered.length);
       filtered.sort((a, b) => compareCards(a, b, options.order));
       const limit = options.show === 'all' ? filtered.length : Math.ceil(filtered.length * Number(options.show) / 100);

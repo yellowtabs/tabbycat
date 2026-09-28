@@ -37,7 +37,7 @@ class LatestFeedbackViewTests(SimpleTestCase):
         view = LatestFeedbackView()
         view.request = RequestFactory().get('/', params)
         view._tournament_from_url = SimpleNamespace(pref=lambda name: {
-            'adj_min_score': 0.0, 'adj_max_score': 10.0,
+            'adj_min_score': 0.0, 'adj_max_score': 10.0, 'adj_score_step': 0.5,
         }[name])
         return view
 
@@ -98,29 +98,40 @@ class LatestFeedbackViewTests(SimpleTestCase):
 
     def test_score_ticks_filter_before_percentage_limit(self):
         queryset = FeedbackQueryset(40)
-        view = self.make_view({'score_min': '25', 'score_max': '75', 'show': '50'})
+        view = self.make_view({'score_min': '5', 'score_max': '15', 'show': '50'})
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
             result = view.get_feedback_queryset()
         self.assertEqual(queryset.filters, [{'score__gte': 2.5, 'score__lte': 7.5}])
         self.assertEqual(result, slice(None, 20))
 
     def test_invalid_or_reversed_score_ticks(self):
-        view = self.make_view({'score_min': '90', 'score_max': '10', 'show': 'all'})
+        view = self.make_view({'score_min': '18', 'score_max': '2', 'show': 'all'})
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=FeedbackQueryset(0)):
             view.get_feedback_queryset()
-        self.assertEqual(view.score_min_tick, 10)
-        self.assertEqual(view.score_max_tick, 90)
-        view = self.make_view({'score_min': 'NaN', 'score_max': '101', 'show': 'all'})
+        self.assertEqual(view.score_min_tick, 2)
+        self.assertEqual(view.score_max_tick, 18)
+        view = self.make_view({'score_min': 'NaN', 'score_max': '21', 'show': 'all'})
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=FeedbackQueryset(0)):
             view.get_feedback_queryset()
-        self.assertEqual((view.score_min_tick, view.score_max_tick), (0, 100))
+        self.assertEqual((view.score_min_tick, view.score_max_tick), (0, 20))
 
     def test_score_filter_keeps_unrestricted_end_open(self):
         queryset = FeedbackQueryset(10)
-        view = self.make_view({'score_max': '50', 'show': 'all'})
+        view = self.make_view({'score_max': '10', 'show': 'all'})
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
             view.get_feedback_queryset()
         self.assertEqual(queryset.filters, [{'score__lte': 5.0}])
+
+    def test_final_tick_reaches_maximum_when_step_does_not_divide_range(self):
+        view = self.make_view({'show': 'all'})
+        view._tournament_from_url.pref = lambda name: {
+            'adj_min_score': 2.0, 'adj_max_score': 9.8, 'adj_score_step': 0.5,
+        }[name]
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=FeedbackQueryset(0)):
+            view.get_feedback_queryset()
+        self.assertEqual(view.score_tick_count, 16)
+        self.assertEqual(view.score_for_tick(15), 9.5)
+        self.assertEqual(view.score_for_tick(16), 9.8)
 
     def test_grouping_keeps_order_and_source_types_separate(self):
         venue = SimpleNamespace(pk=1, name='Auditorium')

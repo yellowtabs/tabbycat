@@ -3,6 +3,7 @@ import json
 import logging
 import math
 from collections import OrderedDict
+from decimal import Decimal, ROUND_CEILING
 
 from django.contrib import messages
 from django.db.models import Count, F, Q
@@ -353,13 +354,17 @@ class LatestFeedbackView(FeedbackCardsView):
         params = self.request.GET
         self.score_floor = self.tournament.pref('adj_min_score')
         self.score_ceiling = self.tournament.pref('adj_max_score')
+        self.score_step = self.tournament.pref('adj_score_step')
+        score_span = Decimal(str(self.score_ceiling)) - Decimal(str(self.score_floor))
+        step = Decimal(str(self.score_step))
+        self.score_tick_count = max(0, int((score_span / step).to_integral_value(rounding=ROUND_CEILING)))
 
         def score_tick(name, default):
             value = params.get(name, str(default))
-            return int(value) if len(value) <= 3 and value.isascii() and value.isdigit() and int(value) <= 100 else default
+            return int(value) if len(value) <= 9 and value.isascii() and value.isdigit() and int(value) <= self.score_tick_count else default
 
         self.score_min_tick = score_tick('score_min', 0)
-        self.score_max_tick = score_tick('score_max', 100)
+        self.score_max_tick = score_tick('score_max', self.score_tick_count)
         if self.score_min_tick > self.score_max_tick:
             self.score_min_tick, self.score_max_tick = self.score_max_tick, self.score_min_tick
         self.feedback_portion = params.get('show', '25')
@@ -380,6 +385,10 @@ class LatestFeedbackView(FeedbackCardsView):
         self.feedback_order = params.get('order', 'newest')
         if self.feedback_order not in self.ORDERINGS:
             self.feedback_order = 'newest'
+
+    def score_for_tick(self, tick):
+        score = Decimal(str(self.score_floor)) + Decimal(str(self.score_step)) * tick
+        return float(min(score, Decimal(str(self.score_ceiling))))
 
     @staticmethod
     def group_value(feedback, grouping):
@@ -435,13 +444,12 @@ class LatestFeedbackView(FeedbackCardsView):
             round_filter = Q(source_team__debate__round_id=self.feedback_round) | Q(
                 source_adjudicator__debate__round_id=self.feedback_round)
             queryset = queryset.filter(round_filter)
-        if self.score_min_tick or self.score_max_tick != 100:
-            score_span = self.score_ceiling - self.score_floor
+        if self.score_min_tick or self.score_max_tick != self.score_tick_count:
             score_filter = {}
             if self.score_min_tick:
-                score_filter['score__gte'] = self.score_floor + score_span * self.score_min_tick / 100
-            if self.score_max_tick != 100:
-                score_filter['score__lte'] = self.score_floor + score_span * self.score_max_tick / 100
+                score_filter['score__gte'] = self.score_for_tick(self.score_min_tick)
+            if self.score_max_tick != self.score_tick_count:
+                score_filter['score__lte'] = self.score_for_tick(self.score_max_tick)
             queryset = queryset.filter(**score_filter)
         self.feedback_total = queryset.count()
         queryset = queryset.order_by(*self.ORDERINGS[self.feedback_order])
@@ -460,6 +468,8 @@ class LatestFeedbackView(FeedbackCardsView):
         context['feedback_order'] = self.feedback_order
         context['score_floor'] = self.score_floor
         context['score_ceiling'] = self.score_ceiling
+        context['score_step'] = self.score_step
+        context['score_tick_count'] = self.score_tick_count
         context['score_min_tick'] = self.score_min_tick
         context['score_max_tick'] = self.score_max_tick
         context['rounds'] = Round.objects.filter(tournament=self.tournament)
