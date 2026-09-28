@@ -367,9 +367,9 @@ class LatestFeedbackView(FeedbackCardsView):
         self.score_max_tick = score_tick('score_max', self.score_tick_count)
         if self.score_min_tick > self.score_max_tick:
             self.score_min_tick, self.score_max_tick = self.score_max_tick, self.score_min_tick
-        self.feedback_portion = params.get('show', '25')
+        self.feedback_portion = params.get('show', 'all')
         if self.feedback_portion not in ('25', '50', '75', 'all'):
-            self.feedback_portion = '25'
+            self.feedback_portion = 'all'
         self.feedback_round = params.get('round', 'all')
         if self.feedback_round != 'all' and (
             not self.feedback_round.isascii() or not self.feedback_round.isdigit() or
@@ -440,6 +440,7 @@ class LatestFeedbackView(FeedbackCardsView):
             'source_adjudicator__debate__venue',
             'source_team__debate__venue',
         )
+        self.feedback_total = queryset.count()
         if self.feedback_round != 'all':
             round_filter = Q(source_team__debate__round_id=self.feedback_round) | Q(
                 source_adjudicator__debate__round_id=self.feedback_round)
@@ -451,9 +452,8 @@ class LatestFeedbackView(FeedbackCardsView):
             if self.score_max_tick != self.score_tick_count:
                 score_filter['score__lte'] = self.score_for_tick(self.score_max_tick)
             queryset = queryset.filter(**score_filter)
-        self.feedback_total = queryset.count()
         queryset = queryset.order_by(*self.ORDERINGS[self.feedback_order])
-        if self.feedback_portion == 'all':
+        if self.feedback_portion == 'all' or self.score_min_tick or self.score_max_tick != self.score_tick_count:
             return queryset
         limit = (self.feedback_total * int(self.feedback_portion) + 99) // 100
         return queryset[:limit]

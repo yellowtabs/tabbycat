@@ -194,6 +194,7 @@
             throw new Error('Feedback cache expired');
           }
           allCards = payload.cards;
+          updateCountOptions(allCards.length);
           return allCards;
         })
         .finally(() => {
@@ -226,7 +227,7 @@
 
     function restoreOptionsFromUrl() {
       const params = new URL(window.location.href).searchParams;
-      const defaults = { round: 'all', primary: 'venue', secondary: 'target', order: 'newest', show: '25' };
+      const defaults = { round: 'all', primary: 'venue', secondary: 'target', order: 'newest', show: 'all' };
       for (const select of filterDropdowns) {
         const value = params.get(select.name);
         select.value = value && Array.from(select.options).some((option) => option.value === value)
@@ -292,9 +293,10 @@
         (options.round === 'all' || String(card.round.id) === options.round) &&
         (options.score_min === '0' || card.score >= minScore) &&
         (Number(options.score_max) === scoreSteps || card.score <= maxScore));
-      updateCountOptions(filtered.length);
       filtered.sort((a, b) => compareCards(a, b, options.order));
-      const limit = options.show === 'all' ? filtered.length : Math.ceil(filtered.length * Number(options.show) / 100);
+      const scoreFiltered = Number(options.score_min) > 0 || Number(options.score_max) < scoreSteps;
+      const limit = scoreFiltered || options.show === 'all'
+        ? filtered.length : Math.ceil(allCards.length * Number(options.show) / 100);
       const rounds = groupCards(filtered.slice(0, limit), options);
       const fragment = document.createDocumentFragment();
       for (const round of rounds) {

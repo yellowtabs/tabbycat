@@ -9,13 +9,14 @@ from adjfeedback.views import FeedbackMixin, LatestFeedbackView
 
 
 class FeedbackQueryset:
-    def __init__(self, total):
+    def __init__(self, total, filtered_total=None):
         self.total = total
+        self.filtered_total = filtered_total
         self.filters = []
         self.order = None
 
     def count(self):
-        return self.total
+        return self.filtered_total if self.filters and self.filtered_total is not None else self.total
 
     def select_related(self, *fields):
         return self
@@ -79,11 +80,18 @@ class LatestFeedbackViewTests(SimpleTestCase):
                 self.assertEqual(result, queryset if selection == 'all' else slice(None, expected))
                 self.assertEqual(view.feedback_total, 40)
 
-    def test_small_total_rounds_up_and_invalid_selection_defaults_to_25_percent(self):
+    def test_invalid_selection_defaults_to_all_feedback(self):
         view = self.make_view({'show': 'invalid'})
-        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=FeedbackQueryset(1)):
-            self.assertEqual(view.get_feedback_queryset(), slice(None, 1))
-        self.assertEqual(view.feedback_portion, '25')
+        queryset = FeedbackQueryset(1)
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
+            self.assertIs(view.get_feedback_queryset(), queryset)
+        self.assertEqual(view.feedback_portion, 'all')
+
+        view = self.make_view({})
+        queryset = FeedbackQueryset(40)
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
+            self.assertIs(view.get_feedback_queryset(), queryset)
+        self.assertEqual(view.feedback_portion, 'all')
 
     def test_round_filter_and_score_order_apply_before_limit(self):
         queryset = FeedbackQueryset(40)
@@ -96,13 +104,21 @@ class LatestFeedbackViewTests(SimpleTestCase):
         self.assertEqual(len(queryset.filters), 1)
         self.assertEqual(queryset.order, ('-score', '-timestamp', '-pk'))
 
-    def test_score_ticks_filter_before_percentage_limit(self):
-        queryset = FeedbackQueryset(40)
+    def test_score_filter_shows_all_matches_without_changing_global_count(self):
+        queryset = FeedbackQueryset(40, filtered_total=3)
         view = self.make_view({'score_min': '5', 'score_max': '15', 'show': '50'})
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
             result = view.get_feedback_queryset()
         self.assertEqual(queryset.filters, [{'score__gte': 2.5, 'score__lte': 7.5}])
-        self.assertEqual(result, slice(None, 20))
+        self.assertIs(result, queryset)
+        self.assertEqual(view.feedback_total, 40)
+
+    def test_round_filter_keeps_global_percentage_limit(self):
+        queryset = FeedbackQueryset(40, filtered_total=5)
+        view = self.make_view({'round': '5', 'show': '50'})
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
+            self.assertEqual(view.get_feedback_queryset(), slice(None, 20))
+        self.assertEqual(view.feedback_total, 40)
 
     def test_invalid_or_reversed_score_ticks(self):
         view = self.make_view({'score_min': '18', 'score_max': '2', 'show': 'all'})
