@@ -1,6 +1,18 @@
 {% extends "feedback_cards_list.html" %}
 {% load i18n l10n %}
 
+{% block page-subtitle %}
+  <label for="latest-feedback-count" class="sr-only">{% trans "Show" %}</label>
+  <select id="latest-feedback-count" name="show" form="latest-feedback-filters"
+          class="custom-select custom-select-sm ml-3" style="width: auto; min-width: 9rem;"
+          data-total="{{ feedback_total }}" data-view-label="{% trans 'View' %}">
+    <option value="25" {% if feedback_portion == '25' %}selected{% endif %}>25%</option>
+    <option value="50" {% if feedback_portion == '50' %}selected{% endif %}>50%</option>
+    <option value="75" {% if feedback_portion == '75' %}selected{% endif %}>75%</option>
+    <option value="all" {% if feedback_portion == 'all' %}selected{% endif %}>{% trans "All feedback" %}</option>
+  </select>
+{% endblock page-subtitle %}
+
 {% block content %}
   <form method="get" id="latest-feedback-filters" class="card card-body mb-4"
         data-loading="{% trans 'Loading feedback for fast filtering…' %}"
@@ -16,7 +28,7 @@
       .feedback-score-track input::-moz-range-thumb { width: 1rem; height: 1rem; border: 2px solid #6f42c1; border-radius: 50%; background: white; cursor: pointer; pointer-events: auto; }
     </style>
     <div class="form-row align-items-end">
-      <div class="col-sm-6 col-lg mb-2 mb-lg-0">
+      <div class="col-sm-6 col-lg-2 mb-2 mb-lg-0">
         <label for="latest-feedback-round" class="small text-secondary mb-1">{% trans "Round" %}</label>
         <select id="latest-feedback-round" name="round" class="custom-select custom-select-sm">
           {% for round in rounds %}
@@ -25,7 +37,7 @@
           <option value="all" {% if feedback_round == 'all' %}selected{% endif %}>{% trans "All rounds" %}</option>
         </select>
       </div>
-      <div class="col-sm-6 col-lg mb-2 mb-lg-0">
+      <div class="col-sm-6 col-lg-2 mb-2 mb-lg-0">
         <label for="latest-feedback-primary" class="small text-secondary mb-1">{% trans "Group by" %}</label>
         <select id="latest-feedback-primary" name="primary" class="custom-select custom-select-sm">
           <option value="none" {% if primary_group == 'none' %}selected{% endif %}>{% trans "None" %}</option>
@@ -34,7 +46,7 @@
           <option value="source" {% if primary_group == 'source' %}selected{% endif %}>{% trans "Source" %}</option>
         </select>
       </div>
-      <div class="col-sm-6 col-lg mb-2 mb-lg-0">
+      <div class="col-sm-6 col-lg-2 mb-2 mb-lg-0">
         <label for="latest-feedback-secondary" class="small text-secondary mb-1">{% trans "Then by" %}</label>
         <select id="latest-feedback-secondary" name="secondary" class="custom-select custom-select-sm">
           <option value="none" {% if secondary_group == 'none' %}selected{% endif %}>{% trans "None" %}</option>
@@ -43,7 +55,7 @@
           <option value="source" {% if secondary_group == 'source' %}selected{% endif %}>{% trans "Source" %}</option>
         </select>
       </div>
-      <div class="col-sm-6 col-lg mb-2 mb-lg-0">
+      <div class="col-sm-6 col-lg-2 mb-2 mb-lg-0">
         <label for="latest-feedback-order" class="small text-secondary mb-1">{% trans "Order" %}</label>
         <select id="latest-feedback-order" name="order" class="custom-select custom-select-sm">
           <option value="newest" {% if feedback_order == 'newest' %}selected{% endif %}>{% trans "Newest" %}</option>
@@ -52,30 +64,20 @@
           <option value="score_desc" {% if feedback_order == 'score_desc' %}selected{% endif %}>{% trans "Score: high to low" %}</option>
         </select>
       </div>
-      <div class="col-sm-6 col-lg mb-2 mb-lg-0">
-        <label for="latest-feedback-count" class="small text-secondary mb-1">{% trans "Show" %}</label>
-        <select id="latest-feedback-count" name="show" class="custom-select custom-select-sm"
-                data-total="{{ feedback_total }}" data-view-label="{% trans 'View' %}">
-          <option value="25" {% if feedback_portion == '25' %}selected{% endif %}>25%</option>
-          <option value="50" {% if feedback_portion == '50' %}selected{% endif %}>50%</option>
-          <option value="75" {% if feedback_portion == '75' %}selected{% endif %}>75%</option>
-          <option value="all" {% if feedback_portion == 'all' %}selected{% endif %}>{% trans "All feedback" %}</option>
-        </select>
-      </div>
-    </div>
-    <div class="mt-3" id="latest-feedback-score-range"
-         data-floor="{{ score_floor|unlocalize }}" data-ceiling="{{ score_ceiling|unlocalize }}"
-         data-step="{{ score_step|unlocalize }}" data-steps="{{ score_tick_count }}">
-      <div class="d-flex justify-content-between small text-secondary mb-1">
-        <span>{% trans "Feedback score" %}</span>
-        <output id="latest-feedback-score-value" aria-live="polite"></output>
-      </div>
-      <div class="feedback-score-track">
-        <div class="feedback-score-track-fill" id="latest-feedback-score-fill"></div>
-        <input type="range" id="latest-feedback-score-min" name="score_min" min="0" max="{{ score_tick_count }}" step="1"
-               value="{{ score_min_tick }}" aria-label="{% trans 'Minimum feedback score' %}">
-        <input type="range" id="latest-feedback-score-max" name="score_max" min="0" max="{{ score_tick_count }}" step="1"
-               value="{{ score_max_tick }}" aria-label="{% trans 'Maximum feedback score' %}">
+      <div class="col-12 col-lg-4" id="latest-feedback-score-range"
+           data-floor="{{ score_floor|unlocalize }}" data-ceiling="{{ score_ceiling|unlocalize }}"
+           data-step="{{ score_step|unlocalize }}" data-steps="{{ score_tick_count }}">
+        <div class="d-flex justify-content-between small text-secondary mb-1">
+          <span>{% trans "Feedback score" %}</span>
+          <output id="latest-feedback-score-value" aria-live="polite"></output>
+        </div>
+        <div class="feedback-score-track">
+          <div class="feedback-score-track-fill" id="latest-feedback-score-fill"></div>
+          <input type="range" id="latest-feedback-score-min" name="score_min" min="0" max="{{ score_tick_count }}" step="1"
+                 value="{{ score_min_tick }}" aria-label="{% trans 'Minimum feedback score' %}">
+          <input type="range" id="latest-feedback-score-max" name="score_max" min="0" max="{{ score_tick_count }}" step="1"
+                 value="{{ score_max_tick }}" aria-label="{% trans 'Maximum feedback score' %}">
+        </div>
       </div>
     </div>
     <noscript><button type="submit" class="btn btn-sm btn-outline-primary mt-2">{% trans "Apply" %}</button></noscript>
@@ -335,7 +337,7 @@
       }
     }
 
-    feedbackFilters.addEventListener('change', (event) => {
+    function handleFilterChange(event) {
       if (feedbackActionPending) return;
       if (event.target === primarySelect && secondarySelect.value === primarySelect.value) {
         secondarySelect.value = 'none';
@@ -343,7 +345,9 @@
       if (event.target === scoreMin || event.target === scoreMax) updateScoreRange(event.target);
       updateUrl();
       applyFilters();
-    });
+    }
+    feedbackFilters.addEventListener('change', handleFilterChange);
+    feedbackCountSelect.addEventListener('change', handleFilterChange);
     for (const input of [scoreMin, scoreMax]) {
       input.addEventListener('input', () => updateScoreRange(input));
     }
