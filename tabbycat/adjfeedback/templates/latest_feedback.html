@@ -1,10 +1,20 @@
 {% extends "feedback_cards_list.html" %}
-{% load i18n %}
+{% load i18n l10n %}
 
 {% block content %}
   <form method="get" id="latest-feedback-filters" class="card card-body mb-4"
         data-loading="{% trans 'Loading feedback for fast filtering…' %}"
         data-empty="{% trans 'No feedback matches these filters.' %}">
+    <style>
+      .feedback-score-track { position: relative; height: 1.5rem; }
+      .feedback-score-track::before { content: ''; position: absolute; top: .65rem; left: 0; right: 0; height: .25rem; border-radius: 1rem; background: #dee2e6; }
+      .feedback-score-track-fill { position: absolute; top: .65rem; height: .25rem; border-radius: 1rem; background: #6f42c1; }
+      .feedback-score-track input { position: absolute; width: 100%; height: 1.5rem; margin: 0; background: transparent; pointer-events: none; appearance: none; -webkit-appearance: none; }
+      .feedback-score-track input::-webkit-slider-runnable-track { background: transparent; }
+      .feedback-score-track input::-moz-range-track { background: transparent; }
+      .feedback-score-track input::-webkit-slider-thumb { width: 1rem; height: 1rem; border: 2px solid #6f42c1; border-radius: 50%; background: white; cursor: pointer; pointer-events: auto; appearance: none; -webkit-appearance: none; margin-top: .25rem; }
+      .feedback-score-track input::-moz-range-thumb { width: 1rem; height: 1rem; border: 2px solid #6f42c1; border-radius: 50%; background: white; cursor: pointer; pointer-events: auto; }
+    </style>
     <div class="form-row align-items-end">
       <div class="col-sm-6 col-lg mb-2 mb-lg-0">
         <label for="latest-feedback-round" class="small text-secondary mb-1">{% trans "Round" %}</label>
@@ -53,6 +63,20 @@
         </select>
       </div>
     </div>
+    <div class="mt-3" id="latest-feedback-score-range"
+         data-floor="{{ score_floor|unlocalize }}" data-ceiling="{{ score_ceiling|unlocalize }}">
+      <div class="d-flex justify-content-between small text-secondary mb-1">
+        <span>{% trans "Feedback score" %}</span>
+        <output id="latest-feedback-score-value" aria-live="polite"></output>
+      </div>
+      <div class="feedback-score-track">
+        <div class="feedback-score-track-fill" id="latest-feedback-score-fill"></div>
+        <input type="range" id="latest-feedback-score-min" name="score_min" min="0" max="100" step="1"
+               value="{{ score_min_tick }}" aria-label="{% trans 'Minimum feedback score' %}">
+        <input type="range" id="latest-feedback-score-max" name="score_max" min="0" max="100" step="1"
+               value="{{ score_max_tick }}" aria-label="{% trans 'Maximum feedback score' %}">
+      </div>
+    </div>
     <noscript><button type="submit" class="btn btn-sm btn-outline-primary mt-2">{% trans "Apply" %}</button></noscript>
   </form>
   <div id="latest-feedback-status" class="small text-secondary mb-2" role="status" aria-live="polite"></div>
@@ -91,7 +115,15 @@
     const primarySelect = document.getElementById('latest-feedback-primary');
     const secondarySelect = document.getElementById('latest-feedback-secondary');
     const orderSelect = document.getElementById('latest-feedback-order');
-    const filterSelects = [roundSelect, primarySelect, secondarySelect, orderSelect, feedbackCountSelect];
+    const scoreRange = document.getElementById('latest-feedback-score-range');
+    const scoreMin = document.getElementById('latest-feedback-score-min');
+    const scoreMax = document.getElementById('latest-feedback-score-max');
+    const scoreValue = document.getElementById('latest-feedback-score-value');
+    const scoreFill = document.getElementById('latest-feedback-score-fill');
+    const scoreFloor = Number(scoreRange.dataset.floor);
+    const scoreCeiling = Number(scoreRange.dataset.ceiling);
+    const filterDropdowns = [roundSelect, primarySelect, secondarySelect, orderSelect, feedbackCountSelect];
+    const filterSelects = [...filterDropdowns, scoreMin, scoreMax];
     let allCards = null;
     let cachePromise = null;
     let cacheController = null;
@@ -107,6 +139,25 @@
       }
     }
     updateCountOptions(Number(feedbackCountSelect.dataset.total));
+
+    function scoreAt(tick) {
+      return scoreFloor + (scoreCeiling - scoreFloor) * tick / 100;
+    }
+
+    function updateScoreRange(changed) {
+      if (Number(scoreMin.value) > Number(scoreMax.value)) {
+        if (changed === scoreMin) scoreMax.value = scoreMin.value;
+        else scoreMin.value = scoreMax.value;
+      }
+      const min = Number(scoreMin.value);
+      const max = Number(scoreMax.value);
+      scoreValue.textContent = `${Number(scoreAt(min).toFixed(3))}–${Number(scoreAt(max).toFixed(3))}`;
+      scoreFill.style.left = `${min}%`;
+      scoreFill.style.width = `${max - min}%`;
+      scoreMin.style.zIndex = min === 100 ? '2' : '1';
+      scoreMax.style.zIndex = min === 100 ? '1' : '2';
+    }
+    updateScoreRange();
 
     function invalidateCache() {
       cacheRevision += 1;
@@ -157,6 +208,8 @@
         secondary: secondarySelect.value,
         order: orderSelect.value,
         show: feedbackCountSelect.value,
+        score_min: scoreMin.value,
+        score_max: scoreMax.value,
       };
     }
 
@@ -169,12 +222,17 @@
     function restoreOptionsFromUrl() {
       const params = new URL(window.location.href).searchParams;
       const defaults = { round: 'all', primary: 'venue', secondary: 'target', order: 'newest', show: '25' };
-      for (const select of filterSelects) {
+      for (const select of filterDropdowns) {
         const value = params.get(select.name);
         select.value = value && Array.from(select.options).some((option) => option.value === value)
           ? value : defaults[select.name];
       }
       selectedOptions();
+      for (const [input, name, fallback] of [[scoreMin, 'score_min', 0], [scoreMax, 'score_max', 100]]) {
+        const value = params.get(name);
+        input.value = value !== null && /^\d+$/.test(value) && Number(value) <= 100 ? value : fallback;
+      }
+      updateScoreRange(scoreMin);
     }
 
     function compareCards(a, b, order) {
@@ -223,7 +281,12 @@
     function renderSelection() {
       if (!allCards) return;
       const options = selectedOptions();
-      const filtered = allCards.filter((card) => options.round === 'all' || String(card.round.id) === options.round);
+      const minScore = scoreAt(Number(options.score_min));
+      const maxScore = scoreAt(Number(options.score_max));
+      const filtered = allCards.filter((card) =>
+        (options.round === 'all' || String(card.round.id) === options.round) &&
+        (options.score_min === '0' || card.score >= minScore) &&
+        (options.score_max === '100' || card.score <= maxScore));
       updateCountOptions(filtered.length);
       filtered.sort((a, b) => compareCards(a, b, options.order));
       const limit = options.show === 'all' ? filtered.length : Math.ceil(filtered.length * Number(options.show) / 100);
@@ -274,9 +337,13 @@
       if (event.target === primarySelect && secondarySelect.value === primarySelect.value) {
         secondarySelect.value = 'none';
       }
+      if (event.target === scoreMin || event.target === scoreMax) updateScoreRange(event.target);
       updateUrl();
       applyFilters();
     });
+    for (const input of [scoreMin, scoreMax]) {
+      input.addEventListener('input', () => updateScoreRange(input));
+    }
 
     window.addEventListener('popstate', () => {
       restoreOptionsFromUrl();

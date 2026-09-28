@@ -24,8 +24,8 @@ class FeedbackQueryset:
         self.order = fields
         return self
 
-    def filter(self, condition):
-        self.filters.append(condition)
+    def filter(self, condition=None, **kwargs):
+        self.filters.append(condition if condition is not None else kwargs)
         return self
 
     def __getitem__(self, selection):
@@ -33,6 +33,14 @@ class FeedbackQueryset:
 
 
 class LatestFeedbackViewTests(SimpleTestCase):
+    def make_view(self, params):
+        view = LatestFeedbackView()
+        view.request = RequestFactory().get('/', params)
+        view._tournament_from_url = SimpleNamespace(pref=lambda name: {
+            'adj_min_score': 0.0, 'adj_max_score': 10.0,
+        }[name])
+        return view
+
     def test_card_payload_contains_sort_and_group_metadata(self):
         feedback = SimpleNamespace(
             pk=9, round=SimpleNamespace(pk=2, name='Round 2', seq=2),
@@ -65,24 +73,21 @@ class LatestFeedbackViewTests(SimpleTestCase):
         ):
             with self.subTest(selection=selection):
                 queryset = FeedbackQueryset(40)
-                view = LatestFeedbackView()
-                view.request = RequestFactory().get('/', {'show': selection})
+                view = self.make_view({'show': selection})
                 with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
                     result = view.get_feedback_queryset()
                 self.assertEqual(result, queryset if selection == 'all' else slice(None, expected))
                 self.assertEqual(view.feedback_total, 40)
 
     def test_small_total_rounds_up_and_invalid_selection_defaults_to_25_percent(self):
-        view = LatestFeedbackView()
-        view.request = RequestFactory().get('/', {'show': 'invalid'})
+        view = self.make_view({'show': 'invalid'})
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=FeedbackQueryset(1)):
             self.assertEqual(view.get_feedback_queryset(), slice(None, 1))
         self.assertEqual(view.feedback_portion, '25')
 
     def test_round_filter_and_score_order_apply_before_limit(self):
         queryset = FeedbackQueryset(40)
-        view = LatestFeedbackView()
-        view.request = RequestFactory().get('/', {
+        view = self.make_view({
             'round': '5', 'order': 'score_desc', 'show': '50',
         })
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
@@ -90,6 +95,32 @@ class LatestFeedbackViewTests(SimpleTestCase):
         self.assertEqual(result, slice(None, 20))
         self.assertEqual(len(queryset.filters), 1)
         self.assertEqual(queryset.order, ('-score', '-timestamp', '-pk'))
+
+    def test_score_ticks_filter_before_percentage_limit(self):
+        queryset = FeedbackQueryset(40)
+        view = self.make_view({'score_min': '25', 'score_max': '75', 'show': '50'})
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
+            result = view.get_feedback_queryset()
+        self.assertEqual(queryset.filters, [{'score__gte': 2.5, 'score__lte': 7.5}])
+        self.assertEqual(result, slice(None, 20))
+
+    def test_invalid_or_reversed_score_ticks(self):
+        view = self.make_view({'score_min': '90', 'score_max': '10', 'show': 'all'})
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=FeedbackQueryset(0)):
+            view.get_feedback_queryset()
+        self.assertEqual(view.score_min_tick, 10)
+        self.assertEqual(view.score_max_tick, 90)
+        view = self.make_view({'score_min': 'NaN', 'score_max': '101', 'show': 'all'})
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=FeedbackQueryset(0)):
+            view.get_feedback_queryset()
+        self.assertEqual((view.score_min_tick, view.score_max_tick), (0, 100))
+
+    def test_score_filter_keeps_unrestricted_end_open(self):
+        queryset = FeedbackQueryset(10)
+        view = self.make_view({'score_max': '50', 'show': 'all'})
+        with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
+            view.get_feedback_queryset()
+        self.assertEqual(queryset.filters, [{'score__lte': 5.0}])
 
     def test_grouping_keeps_order_and_source_types_separate(self):
         venue = SimpleNamespace(pk=1, name='Auditorium')
