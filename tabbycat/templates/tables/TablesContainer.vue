@@ -9,24 +9,26 @@
         <div class="input-group-append">
           <span class="input-group-text"><i data-feather="search"></i></span>
         </div>
-        <div v-for="(table, i) in tablesData">
-          <button class="btn btn-light border ml-2" @click.prevent="copyTableTrigger(i)"
-            data-toggle="tooltip" title="Copy table data to clipboard in a CSV format">
-            <i data-feather="clipboard"></i>
-          </button>
-        </div>
       </div>
     </div>
 
     <div class="col mb-3" v-for="(table, i) in tablesData" :class="tableClass">
       <div class="card table-container pl-1" :id="getTableId(i)">
         <div class="card-body pl-3 pr-0 py-2">
-          <h4 class="card-title mt-1 mb-2" v-if="table.title">
-            {{ table.title }}
-            <small class="text-muted d-md-inline d-none" v-if="table.subtitle">
-              {{ table.subtitle }}
-            </small>
-          </h4>
+          <div class="d-flex justify-content-between align-items-start">
+            <h4 class="card-title mt-1 mb-2" v-if="table.title">
+              {{ table.title }}
+              <small class="text-muted d-md-inline d-none" v-if="table.subtitle">
+                {{ table.subtitle }}
+              </small>
+            </h4>
+            <button class="btn btn-light btn-sm border p-1 ml-auto mr-3 mb-2 d-print-none"
+                    @click.prevent="copyTableTrigger(i)" data-toggle="tooltip"
+                    title="Copy table data to clipboard in a CSV format"
+                    aria-label="Copy table data to clipboard">
+              <i data-feather="clipboard"></i>
+            </button>
+          </div>
           <smart-table
             :table-headers="table.head" :table-content="table.data"
             :table-class="table.class"
