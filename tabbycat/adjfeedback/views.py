@@ -989,9 +989,31 @@ class BaseFeedbackToggleView(AdministratorMixin, TournamentMixin, PostOnlyRedire
         else:
             source = feedback.source_team.team.short_name
         result = self.feedback_result(feedback)
-        messages.success(self.request, _(
-            "Feedback for %(adjudicator)s from %(source)s is now %(result)s.")
-            % {'adjudicator': feedback.adjudicator.get_public_name(self.tournament), 'source': source, 'result': result})
+        message = _(
+            "Feedback for %(adjudicator)s from %(source)s is now %(result)s.") % {
+                'adjudicator': feedback.adjudicator.get_public_name(self.tournament),
+                'source': source, 'result': result,
+            }
+
+        if request.headers.get('Accept') == 'application/json':
+            if feedback.confirmed and isinstance(self, ConfirmFeedbackView):
+                statuses = AdjudicatorFeedback.objects.filter(
+                    **feedback._unique_unconfirm_args()).values_list('pk', 'confirmed', 'ignored')
+            else:
+                statuses = [(feedback.pk, feedback.confirmed, feedback.ignored)]
+            updates = [{
+                'id': pk,
+                'status_html': render_to_string('feedback_card_status.html', {
+                    'feedback': {'confirmed': confirmed, 'ignored': ignored},
+                }, request=request),
+                'confirm_label': _("Discard") if confirmed else _("Confirm"),
+                'ignore_label': _("Include") if ignored else _("Ignore"),
+            } for pk, confirmed, ignored in statuses]
+            response = JsonResponse({'message': message, 'updates': updates})
+            response['Cache-Control'] = 'private, no-store'
+            return response
+
+        messages.success(request, message)
 
         return super().post(request, *args, **kwargs)
 

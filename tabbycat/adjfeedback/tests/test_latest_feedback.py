@@ -1,11 +1,12 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from types import SimpleNamespace
 from datetime import datetime, timezone
 import json
 
 from django.test import RequestFactory, SimpleTestCase
 
-from adjfeedback.views import FeedbackMixin, LatestFeedbackView
+from adjfeedback.models import AdjudicatorFeedback
+from adjfeedback.views import ConfirmFeedbackView, FeedbackMixin, IgnoreFeedbackView, LatestFeedbackView
 
 
 class FeedbackQueryset:
@@ -205,3 +206,51 @@ class LatestFeedbackViewTests(SimpleTestCase):
         view.feedback_order = 'score_desc'
         self.assertEqual([g['label'] for g in view.group_feedbacks(feedbacks)],
             ['Round 1', 'Round 2'])
+
+
+class FeedbackToggleResponseTests(SimpleTestCase):
+    def make_feedback(self):
+        feedback = SimpleNamespace(
+            pk=1, confirmed=False, ignored=False,
+            source_adjudicator=None,
+            source_team=SimpleNamespace(team=SimpleNamespace(short_name='Team A')),
+            adjudicator=SimpleNamespace(get_public_name=lambda tournament: 'Judge A'),
+            save=Mock(),
+            _unique_unconfirm_args=lambda: {'source_team_id': 7},
+        )
+        return feedback
+
+    def test_confirm_json_updates_auto_unconfirmed_feedback(self):
+        request = RequestFactory().post('/', HTTP_ACCEPT='application/json')
+        request.user = SimpleNamespace()
+        view = ConfirmFeedbackView()
+        view.request = request
+        view._tournament_from_url = SimpleNamespace()
+        feedback = self.make_feedback()
+        with patch.object(AdjudicatorFeedback.objects, 'get', return_value=feedback), \
+                patch.object(AdjudicatorFeedback.objects, 'filter') as filtered:
+            filtered.return_value.values_list.return_value = [
+                (1, True, False), (2, False, False),
+            ]
+            response = view.post(request, feedback_id=1)
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item['id'] for item in payload['updates']], [1, 2])
+        self.assertEqual(payload['updates'][0]['confirm_label'], 'Discard')
+        self.assertIn('Discarded;', payload['updates'][1]['status_html'])
+        feedback.save.assert_called_once()
+
+    def test_ignore_json_returns_only_changed_feedback(self):
+        request = RequestFactory().post('/', HTTP_ACCEPT='application/json')
+        view = IgnoreFeedbackView()
+        view.request = request
+        view._tournament_from_url = SimpleNamespace()
+        feedback = self.make_feedback()
+        with patch.object(AdjudicatorFeedback.objects, 'get', return_value=feedback), \
+                patch.object(AdjudicatorFeedback.objects, 'filter') as filtered:
+            response = view.post(request, feedback_id=1)
+        payload = json.loads(response.content)
+        self.assertEqual(len(payload['updates']), 1)
+        self.assertEqual(payload['updates'][0]['ignore_label'], 'Include')
+        self.assertIn('Ignored;', payload['updates'][0]['status_html'])
+        filtered.assert_not_called()

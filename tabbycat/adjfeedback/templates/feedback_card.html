@@ -1,20 +1,9 @@
 {% load debate_tags humanize i18n %}
 
-<div class="card">
+<div class="card" data-feedback-id="{{ feedback.pk }}">
   <div class="list-group list-group-flush">
 
-    {% if not feedback.confirmed %}
-      <div class="list-group-item list-group-item-warning h6" data-toggle="tooltip"
-           title="{% trans 'This is most likely because the team or adjudicator who submitted this feedback has submitted several times on the same person; or because a team has submitted feedback on multiple panellists (rather than just the orallist).' %}">
-      {% trans "Discarded; will not count towards this adjudicator's feedback." %}
-      </div>
-    {% endif %}
-    {% if feedback.ignored %}
-      <div class="list-group-item list-group-item-warning h6" data-toggle="tooltip"
-           title="{% trans 'The feedback is counted for the adjudicator, but is not taken into account when calculating scores.' %}">
-      {% trans "Ignored; will not affect this adjudicator's score." %}
-      </div>
-    {% endif %}
+    {% include 'feedback_card_status.html' %}
     {% if not feedback.debate_adjudicator.get_type_display %}
       <div class="list-group-item list-group-item-danger h6">
         {% trans "This feedback is submitted on an adjudicator but it looks like they have been since been removed from the debate. You should probably go to the Edit Database area and delete this feedback." %}
@@ -54,7 +43,7 @@
         {% endblocktranslate %}
       </span>
       {% if feedback.duplicate_total %}
-        <span class="badge badge-light border text-secondary ml-2 align-middle" data-toggle="tooltip" tabindex="0"
+        <span class="badge badge-warning ml-2 align-middle" data-toggle="tooltip" tabindex="0"
               title="{% blocktrans with number=feedback.duplicate_number total=feedback.duplicate_total %}Duplicate submission {{ number }} of {{ total }} from this source for this adjudicator in this debate.{% endblocktrans %}">
           <i data-feather="copy" aria-hidden="true" style="width: 0.85em; height: 0.85em;"></i>
           {{ feedback.duplicate_number }}/{{ feedback.duplicate_total }}
@@ -114,7 +103,7 @@
       </span>
       <span class="float-right" data-toggle="tooltip"
             title="{% trans "Discarded feedback is not counted as having been submitted and does not affect this adjudicator's score." %}">
-        <form method="POST" action="{% tournamenturl 'adjfeedback-confirm-feedback' feedback.id %}" class='text-secondary' data-feedback-action>
+        <form method="POST" action="{% tournamenturl 'adjfeedback-confirm-feedback' feedback.id %}" class='text-secondary' data-feedback-action="confirm">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ feedback_next_url|default:request.get_full_path }}">
           <button type="submit" class="btn btn-link text-muted pl-3 p-0">
@@ -124,7 +113,7 @@
       </span>
       <span class="float-right" data-toggle="tooltip"
             title="{% trans "Ignored feedback is counted as having been submitted, but does not affect this adjudicator's score." %}">
-        <form method="POST" action="{% tournamenturl 'adjfeedback-ignore-feedback' feedback.id %}" class='text-secondary' data-feedback-action>
+        <form method="POST" action="{% tournamenturl 'adjfeedback-ignore-feedback' feedback.id %}" class='text-secondary' data-feedback-action="ignore">
           {% csrf_token %}
           <input type="hidden" name="next" value="{{ feedback_next_url|default:request.get_full_path }}">
           <button type="submit" class="btn btn-link text-muted p-0">

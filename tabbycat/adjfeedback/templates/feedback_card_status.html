@@ -1,0 +1,13 @@
+{% load i18n %}
+{% if not feedback.confirmed %}
+  <div class="list-group-item list-group-item-warning h6" data-feedback-status data-toggle="tooltip"
+       title="{% trans 'This is most likely because the team or adjudicator who submitted this feedback has submitted several times on the same person; or because a team has submitted feedback on multiple panellists (rather than just the orallist).' %}">
+    {% trans "Discarded; will not count towards this adjudicator's feedback." %}
+  </div>
+{% endif %}
+{% if feedback.ignored %}
+  <div class="list-group-item list-group-item-warning h6" data-feedback-status data-toggle="tooltip"
+       title="{% trans 'The feedback is counted for the adjudicator, but is not taken into account when calculating scores.' %}">
+    {% trans "Ignored; will not affect this adjudicator's score." %}
+  </div>
+{% endif %}
