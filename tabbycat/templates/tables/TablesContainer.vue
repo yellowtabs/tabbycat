@@ -22,9 +22,10 @@
                 {{ table.subtitle }}
               </small>
             </h4>
-            <button class="btn btn-light border ml-auto mb-2 d-print-none"
+            <button class="btn btn-light btn-sm border p-1 ml-auto mr-3 mb-2 d-print-none"
                     @click.prevent="copyTableTrigger(i)" data-toggle="tooltip"
-                    title="Copy table data to clipboard in a CSV format">
+                    title="Copy table data to clipboard in a CSV format"
+                    aria-label="Copy table data to clipboard">
               <i data-feather="clipboard"></i>
             </button>
           </div>
