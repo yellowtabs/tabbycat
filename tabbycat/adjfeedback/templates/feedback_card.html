@@ -20,11 +20,6 @@
         {% trans "This feedback is submitted on an adjudicator but it looks like they have been since been removed from the debate. You should probably go to the Edit Database area and delete this feedback." %}
       </div>
     {% endif %}
-    {% if feedback.duplicate_total %}
-      <div class="list-group-item py-2">
-        <span class="badge badge-warning">{% blocktrans with number=feedback.duplicate_number total=feedback.duplicate_total %}Duplicate {{ number }} of {{ total }}{% endblocktrans %}</span>
-      </div>
-    {% endif %}
     <div class="list-group-item h5">
       <div class="d-flex flex-wrap align-items-center">
         <span class="mr-2">
@@ -58,6 +53,13 @@
           Received as {{ as_type }}
         {% endblocktranslate %}
       </span>
+      {% if feedback.duplicate_total %}
+        <span class="badge badge-light border text-secondary ml-2 align-middle" data-toggle="tooltip" tabindex="0"
+              title="{% blocktrans with number=feedback.duplicate_number total=feedback.duplicate_total %}Duplicate submission {{ number }} of {{ total }} from this source for this adjudicator in this debate.{% endblocktrans %}">
+          <i data-feather="copy" aria-hidden="true" style="width: 0.85em; height: 0.85em;"></i>
+          {{ feedback.duplicate_number }}/{{ feedback.duplicate_total }}
+        </span>
+      {% endif %}
     </div>
     <div class="list-group-item h5">
       {% if feedback.source_adjudicator %}
