@@ -46,7 +46,7 @@ class LatestFeedbackViewTests(SimpleTestCase):
         feedback = SimpleNamespace(
             pk=9, round=SimpleNamespace(pk=2, name='Round 2', seq=2),
             debate=SimpleNamespace(venue=SimpleNamespace(pk=3, name='Auditorium')),
-            adjudicator=SimpleNamespace(pk=4, name='Judge A'),
+            adjudicator_id=4, adjudicator=SimpleNamespace(pk=4, name='Judge A'),
             source_team_id=5, source_team=SimpleNamespace(team=SimpleNamespace(pk=5, short_name='Team A')),
             source_adjudicator_id=None, score=7.5,
             timestamp=datetime(2026, 9, 26, tzinfo=timezone.utc),
@@ -65,6 +65,7 @@ class LatestFeedbackViewTests(SimpleTestCase):
         self.assertEqual(card['venue'], {'id': 3, 'label': 'Auditorium'})
         self.assertEqual(card['source'], {'id': ['team', 5], 'label': 'Team A'})
         self.assertEqual(card['score'], 7.5)
+        self.assertEqual(card['duplicate_key'], [4, 5, None])
         self.assertEqual(render.call_args.kwargs['request'], request)
         self.assertEqual(render.call_args.args[1]['feedback_next_url'], request.path)
 
@@ -77,7 +78,7 @@ class LatestFeedbackViewTests(SimpleTestCase):
                 view = self.make_view({'show': selection})
                 with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
                     result = view.get_feedback_queryset()
-                self.assertEqual(result, queryset if selection == 'all' else slice(None, expected))
+                self.assertIs(result, queryset)
                 self.assertEqual(view.feedback_total, 40)
 
     def test_invalid_selection_defaults_to_all_feedback(self):
@@ -100,7 +101,7 @@ class LatestFeedbackViewTests(SimpleTestCase):
         })
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
             result = view.get_feedback_queryset()
-        self.assertEqual(result, slice(None, 20))
+        self.assertIs(result, queryset)
         self.assertEqual(len(queryset.filters), 1)
         self.assertEqual(queryset.order, ('-score', '-timestamp', '-pk'))
 
@@ -117,8 +118,31 @@ class LatestFeedbackViewTests(SimpleTestCase):
         queryset = FeedbackQueryset(40, filtered_total=5)
         view = self.make_view({'round': '5', 'show': '50'})
         with patch.object(FeedbackMixin, 'get_feedback_queryset', return_value=queryset):
-            self.assertEqual(view.get_feedback_queryset(), slice(None, 20))
+            self.assertIs(view.get_feedback_queryset(), queryset)
         self.assertEqual(view.feedback_total, 40)
+
+    def test_duplicate_versions_stay_together_and_cross_percentage_cutoff(self):
+        def feedback(pk, version, source, target=1):
+            return SimpleNamespace(pk=pk, version=version, adjudicator_id=target,
+                source_team_id=source, source_adjudicator_id=None)
+
+        view = self.make_view({'show': '25'})
+        view.get_options()
+        view.feedback_total = 8
+        items = [feedback(4, 1, 4), feedback(3, 2, 3), feedback(2, 1, 3),
+                 feedback(1, 1, 1)]
+        with patch.object(FeedbackMixin, 'get_feedbacks', return_value=items):
+            result = view.get_feedbacks()
+        self.assertEqual([item.pk for item in result], [4, 3, 2])
+        self.assertEqual([(item.duplicate_number, item.duplicate_total) for item in result[1:]],
+            [(2, 2), (1, 2)])
+
+    def test_duplicate_key_keeps_sources_and_targets_separate(self):
+        team = SimpleNamespace(adjudicator_id=1, source_team_id=7, source_adjudicator_id=None)
+        adjudicator = SimpleNamespace(adjudicator_id=1, source_team_id=None, source_adjudicator_id=7)
+        other_target = SimpleNamespace(adjudicator_id=2, source_team_id=7, source_adjudicator_id=None)
+        self.assertEqual(len({LatestFeedbackView.duplicate_key(item)
+                              for item in (team, adjudicator, other_target)}), 3)
 
     def test_invalid_or_reversed_score_ticks(self):
         view = self.make_view({'score_min': '18', 'score_max': '2', 'show': 'all'})

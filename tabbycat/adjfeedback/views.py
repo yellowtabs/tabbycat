@@ -320,6 +320,28 @@ class LatestFeedbackView(FeedbackCardsView):
         'score_desc': ('-score', '-timestamp', '-pk'),
     }
 
+    @staticmethod
+    def duplicate_key(feedback):
+        return feedback.adjudicator_id, feedback.source_team_id, feedback.source_adjudicator_id
+
+    def get_feedbacks(self):
+        feedbacks = list(super().get_feedbacks())
+        duplicates = OrderedDict()
+        for feedback in feedbacks:
+            duplicates.setdefault(self.duplicate_key(feedback), []).append(feedback)
+        ordered = []
+        for group in duplicates.values():
+            if len(group) > 1:
+                for number, feedback in enumerate(sorted(group, key=lambda item: (item.version, item.pk)), 1):
+                    feedback.duplicate_number = number
+                    feedback.duplicate_total = len(group)
+            ordered.extend(group)
+            if self.feedback_portion != 'all' and not self.score_min_tick and self.score_max_tick == self.score_tick_count:
+                limit = (self.feedback_total * int(self.feedback_portion) + 99) // 100
+                if len(ordered) >= limit:
+                    break
+        return ordered
+
     def get(self, request, *args, **kwargs):
         if request.GET.get('cards') == '1':
             feedbacks = self.get_feedbacks()
@@ -332,6 +354,9 @@ class LatestFeedbackView(FeedbackCardsView):
                 source_key, source_label = self.group_value(feedback, 'source')
                 cards.append({
                     'id': feedback.pk,
+                    'duplicate_key': [feedback.adjudicator_id, feedback.source_team_id, feedback.source_adjudicator_id],
+                    'duplicate_number': getattr(feedback, 'duplicate_number', None),
+                    'duplicate_total': getattr(feedback, 'duplicate_total', None),
                     'round': {'id': round_.pk, 'name': round_.name, 'seq': round_.seq},
                     'venue': {'id': venue_key, 'label': venue_label},
                     'target': {'id': target_key, 'label': target_label},
@@ -453,10 +478,7 @@ class LatestFeedbackView(FeedbackCardsView):
                 score_filter['score__lte'] = self.score_for_tick(self.score_max_tick)
             queryset = queryset.filter(**score_filter)
         queryset = queryset.order_by(*self.ORDERINGS[self.feedback_order])
-        if self.feedback_portion == 'all' or self.score_min_tick or self.score_max_tick != self.score_tick_count:
-            return queryset
-        limit = (self.feedback_total * int(self.feedback_portion) + 99) // 100
-        return queryset[:limit]
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

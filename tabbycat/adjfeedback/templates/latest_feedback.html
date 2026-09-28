@@ -248,6 +248,21 @@
       return b.timestamp - a.timestamp || b.id - a.id;
     }
 
+    function keepDuplicatesTogether(cards, limit) {
+      const groups = new Map();
+      for (const card of cards) {
+        const key = JSON.stringify(card.duplicate_key);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(card);
+      }
+      const ordered = [];
+      for (const group of groups.values()) {
+        ordered.push(...group);
+        if (ordered.length >= limit) break;
+      }
+      return ordered;
+    }
+
     function groupCards(cards, options) {
       const rounds = new Map();
       for (const card of cards) {
@@ -297,7 +312,7 @@
       const scoreFiltered = Number(options.score_min) > 0 || Number(options.score_max) < scoreSteps;
       const limit = scoreFiltered || options.show === 'all'
         ? filtered.length : Math.ceil(allCards.length * Number(options.show) / 100);
-      const rounds = groupCards(filtered.slice(0, limit), options);
+      const rounds = groupCards(keepDuplicatesTogether(filtered, limit), options);
       const fragment = document.createDocumentFragment();
       for (const round of rounds) {
         if (options.round === 'all') appendHeading(fragment, 'h2', 'col-12 mb-3', 'h4 border-bottom pb-2', round.label);
