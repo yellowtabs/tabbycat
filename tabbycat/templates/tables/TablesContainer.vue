@@ -64,19 +64,6 @@ const copyTableTrigger = (i) => {
         <div class="input-group-append">
           <span class="input-group-text"><i data-feather="search" /></span>
         </div>
-        <div
-          v-for="(table, i) in tablesData"
-          :key="i"
-        >
-          <button
-            class="btn btn-light border ml-2"
-            data-toggle="tooltip"
-            title="Copy table data to clipboard in a CSV format"
-            @click.prevent="copyTableTrigger(i)"
-          >
-            <i data-feather="clipboard" />
-          </button>
-        </div>
         <auto-save-counter
           v-if="hasAjaxSelectCells"
           class="ml-2"
@@ -96,6 +83,7 @@ const copyTableTrigger = (i) => {
         class="card table-container pl-1"
       >
         <div class="card-body pl-3 pr-0 py-2">
+          <div class="d-flex justify-content-between align-items-start">
           <h4
             v-if="table.title"
             class="card-title mt-1 mb-2"
@@ -108,6 +96,15 @@ const copyTableTrigger = (i) => {
               {{ table.subtitle }}
             </small>
           </h4>
+            <button
+              class="btn btn-light border ml-auto mb-2 d-print-none"
+              data-toggle="tooltip"
+              title="Copy table data to clipboard in a CSV format"
+              @click.prevent="copyTableTrigger(i)"
+            >
+              <i data-feather="clipboard" />
+            </button>
+          </div>
           <smart-table
             :ref="setTableRef(i)"
             :table-headers="table.head"
