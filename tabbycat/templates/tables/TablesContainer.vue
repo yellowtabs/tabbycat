@@ -84,22 +84,23 @@ const copyTableTrigger = (i) => {
       >
         <div class="card-body pl-3 pr-0 py-2">
           <div class="d-flex justify-content-between align-items-start">
-          <h4
-            v-if="table.title"
-            class="card-title mt-1 mb-2"
-          >
-            {{ table.title }}
-            <small
-              v-if="table.subtitle"
-              class="text-muted d-md-inline d-none"
+            <h4
+              v-if="table.title"
+              class="card-title mt-1 mb-2"
             >
-              {{ table.subtitle }}
-            </small>
-          </h4>
+              {{ table.title }}
+              <small
+                v-if="table.subtitle"
+                class="text-muted d-md-inline d-none"
+              >
+                {{ table.subtitle }}
+              </small>
+            </h4>
             <button
-              class="btn btn-light border ml-auto mb-2 d-print-none"
+              class="btn btn-light btn-sm border p-1 ml-auto mr-3 mb-2 d-print-none"
               data-toggle="tooltip"
               title="Copy table data to clipboard in a CSV format"
+              aria-label="Copy table data to clipboard"
               @click.prevent="copyTableTrigger(i)"
             >
               <i data-feather="clipboard" />
