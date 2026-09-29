@@ -41,7 +41,8 @@
 
   {% if not hmr %}
   <link rel="stylesheet" type="text/css" href="{% static 'vue/assets/app.css' %}" />
-  <link href="{% static 'vue/js/app.js' %}" rel=preload as=script>
+  {# Vite chunks import app.js; the entry must use that same URL or Vue mounts twice. #}
+  <link href="{% get_static_prefix %}vue/js/app.js" rel=preload as=script>
   {% endif %}
 
   {% if not debug %}<!-- Analytics -->
@@ -220,7 +221,7 @@
         ':35729/livereload.js?snipver=1"></' + 'script>')
       </script>
     {% else %}
-      <script type="module" src="{% static 'vue/js/app.js' %}"></script>
+      <script type="module" src="{% get_static_prefix %}vue/js/app.js"></script>
     {% endif %}
 
   {% endblock js %}
