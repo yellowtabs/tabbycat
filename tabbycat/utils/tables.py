@@ -552,7 +552,7 @@ class TabbycatTableBuilder(BaseTableBuilder):
         self.add_column(header, data)
 
     def add_adjudicator_columns(self, adjudicators, show_institutions=True,
-            show_metadata=True, subtext=None):
+            show_metadata=True, subtext=None, link_to_record=False):
 
         adj_data = []
         unredact = self.admin and has_permission(self.user, Permission.VIEW_ANONYMOUS, self.tournament)
@@ -565,6 +565,8 @@ class TabbycatTableBuilder(BaseTableBuilder):
                     cell['class'] = 'admin-redacted'
                 if self._show_record_links:
                     cell['popover'] = {'title': escape_if_unsafe(adj.get_public_name(self.tournament)), 'content': [self._adjudicator_record_link(adj)]}
+                    if link_to_record:
+                        cell['link'] = cell['popover']['content'][0]['link']
                 if subtext == 'institution' and adj.institution is not None:
                     cell['subtext'] = escape(adj.institution.code)
                 adj_data.append(cell)
