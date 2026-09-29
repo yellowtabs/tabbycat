@@ -81,7 +81,7 @@ class Command(BaseCommand):
                 unsafe_cookies = set(response.cookies) - {settings.CSRF_COOKIE_NAME}
                 if unsafe_cookies or response.status_code >= 400:
                     continue
-                body = bytes(response.content) if not response.streaming else b""
+                body = b"".join(response.streaming_content) if response.streaming else bytes(response.content)
                 if len(body) > MAX_RESPONSE_BYTES:
                     raise CommandError("snapshot response exceeds byte limit")
                 total += len(body)
@@ -89,7 +89,7 @@ class Command(BaseCommand):
                     raise CommandError("snapshot exceeds tenant byte limit")
                 body_name = hashlib.sha256(url.encode()).hexdigest()
                 (bodies / body_name).write_bytes(body)
-                headers = {name: response[name] for name in ("Content-Type", "Content-Language", "Cache-Control", "ETag", "Last-Modified", "Location") if response.has_header(name)}
+                headers = {name: response[name] for name in ("Content-Type", "Content-Language", "Cache-Control", "ETag", "Last-Modified", "Location", "X-Robots-Tag", "Referrer-Policy") if response.has_header(name)}
                 entries["GET " + url] = {
                     "status": response.status_code,
                     "headers": headers,

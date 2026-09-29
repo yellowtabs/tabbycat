@@ -67,7 +67,7 @@ export function useSortableTable ({ headers, sortableData, getSortableProperty, 
         } else if (bCellData === '') {
           comparison = -1
         } else if (_.isString(aCellData) || _.isString(bCellData)) {
-          comparison = String(aCellData).localeCompare(String(bCellData), undefined, { sensitivity: 'base' })
+          comparison = String(aCellData).localeCompare(String(bCellData), undefined, { numeric: true, sensitivity: 'base' })
         } else {
           comparison = Number(aCellData) - Number(bCellData)
         }

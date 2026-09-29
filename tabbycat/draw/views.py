@@ -733,6 +733,10 @@ class CreateDrawView(DrawStatusEdit):
                 "You should run room allocations after allocating adjudicators."))
 
         self.log_action()
+        from tournaments.lifecycle_signals import first_draw_generated
+        first_draw_generated.send(
+            sender=type(self), request=request, tournament=self.tournament, round=self.round,
+        )
         return super().post(request, *args, **kwargs)
 
 
@@ -846,7 +850,7 @@ class DrawReleaseView(DrawStatusEdit):
                                     'venue': getattr(debate.venue, 'display_name', _('Room TBA')),
                                     'matchup': matchup,
                                 },
-                                "url": self.request.build_absolute_uri(reverse_tournament('privateurls-person-index', self.tournament, {'url_key': d_adjudicator.adjudicator.url_key})),
+                                "url": self.request.build_absolute_uri(reverse_tournament('privateurls-person-index', self.tournament, kwargs={'url_key': d_adjudicator.adjudicator.url_key})),
                             }),
                         )
             for d_team in debate.debateteam_set.all():
@@ -861,7 +865,7 @@ class DrawReleaseView(DrawStatusEdit):
                                         'venue': getattr(debate.venue, 'display_name', _('Room TBA')),
                                         'matchup': matchup,
                                     },
-                                    "url": self.request.build_absolute_uri(reverse_tournament('privateurls-person-index', self.tournament, {'url_key': speaker.url_key})),
+                                    "url": self.request.build_absolute_uri(reverse_tournament('privateurls-person-index', self.tournament, kwargs={'url_key': speaker.url_key})),
                                 }),
                             )
 

@@ -56,7 +56,7 @@ const sortedUnallocatedItemsByOrder = computed(() => {
 const sortedUnallocatedItemsByName = computed(() => {
   const field = isVenue.value ? 'display_name' : (isTeam.value ? 'short_name' : 'name')
   return filteredUnallocatedItems.value.slice(0).sort((itemA, itemB) => {
-    return itemA[field].localeCompare(itemB[field])
+    return itemA[field].localeCompare(itemB[field], undefined, { numeric: true, sensitivity: 'base' })
   })
 })
 

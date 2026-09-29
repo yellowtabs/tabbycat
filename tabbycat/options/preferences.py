@@ -1122,7 +1122,7 @@ class AllowSearchEngineIndexing(ChoicePreference):
         ('homepage-only', _("Only allow the homepage to be indexed, do not allow any other pages (e.g. tabs, ballots, etc).")),
         ('none', _("Do not allow any pages to be indexed by search engines.")),
     )
-    default = 'all'
+    default = 'homepage-only'
 
 
 @tournament_preferences_registry.register

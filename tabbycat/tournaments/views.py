@@ -194,6 +194,11 @@ class CompleteRoundView(RoundMixin, AdministratorMixin, LogActionMixin, PostOnly
         self.log_action(round=self.round, content_object=self.round)
 
         incomplete_rounds = self.tournament.round_set.filter(completed=False)
+        from tournaments.lifecycle_signals import round_completed
+        round_completed.send(
+            sender=type(self), request=request, tournament=self.tournament, round=self.round,
+            allRoundsCompleted=not incomplete_rounds.exists(),
+        )
 
         if not incomplete_rounds.exists():
             messages.success(request, _("%(round)s has been marked as completed. "

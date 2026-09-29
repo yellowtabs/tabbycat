@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.utils.module_loading import import_string
 from django.utils.text import format_lazy
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
@@ -250,5 +251,9 @@ class PersonIndexView(SingleObjectByRandomisedUrlMixin, PersonalizablePublicTour
         kwargs['feedback_pref'] = t.pref('participant_feedback') == 'private-urls'
         kwargs['ballots_pref'] = t.pref('participant_ballots') == 'private-urls'
         kwargs['vapid_application_server_key'] = settings.PUSH_NOTIFICATIONS_SETTINGS['application_server_key']
+
+        context_provider = getattr(settings, 'PRIVATE_URL_CONTEXT_PROVIDER', None)
+        if context_provider:
+            kwargs.update(import_string(context_provider)(self))
 
         return super().get_context_data(**kwargs)

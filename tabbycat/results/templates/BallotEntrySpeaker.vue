@@ -28,7 +28,7 @@ const selectOptions = computed(() => {
   for (const speakerOpt of props.speaker.nameField) {
     options.push({ text: speakerOpt.textContent, value: speakerOpt.getAttribute('value') })
   }
-  return options.sort((a, b) => a.text.localeCompare(b.text))
+  return options.sort((a, b) => a.text.localeCompare(b.text, undefined, { numeric: true, sensitivity: 'base' }))
 })
 
 const selectAttributes = computed(() => {

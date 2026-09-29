@@ -140,7 +140,7 @@ class WarnAboutDatabaseUseMixin(ContextMixin):
         return cursor.fetchone()[0]
 
     def get_context_data(self, **kwargs):
-        if 'DATABASE_URL' in os.environ and self.request.user.is_authenticated:
+        if not getattr(settings, 'ON_YELLOWTABS', False) and 'DATABASE_URL' in os.environ and self.request.user.is_authenticated:
             rows = self.get_database_row_count()
             if rows >= 8000:
                 kwargs['database_rows_used'] = rows
@@ -157,7 +157,7 @@ class WarnAboutLegacySendgridConfigVarsMixin(ContextMixin):
     """
 
     def get_context_data(self, **kwargs):
-        if self.request.user.is_authenticated and getattr(settings, 'USING_LEGACY_SENDGRID_CONFIG_VARS', False):
+        if not getattr(settings, 'ON_YELLOWTABS', False) and self.request.user.is_authenticated and getattr(settings, 'USING_LEGACY_SENDGRID_CONFIG_VARS', False):
             kwargs['using_legacy_sendgrid_config_vars'] = True
         return super().get_context_data(**kwargs)
 
