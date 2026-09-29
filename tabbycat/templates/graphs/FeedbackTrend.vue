@@ -1,5 +1,5 @@
 <script setup>
-import { computed, getCurrentInstance, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import * as d3 from 'd3'
 
 // returns slope, intercept and r-square of the line
@@ -50,8 +50,7 @@ function initChart (vueContext) {
     .attr('class', 'd3-tooltip tooltip')
     .style('opacity', 0)
 
-  const element = $(vueContext.$el).children('.d3-graph')[0]
-  const svg = d3.select(element).insert('svg', ':first-child')
+  const svg = d3.select(vueContext.element).insert('svg', ':first-child')
     .attr('width', vueContext.width + vueContext.padding + vueContext.padding)
     .attr('height', vueContext.height + vueContext.padding + vueContext.padding)
     .append('g')
@@ -126,13 +125,12 @@ const props = defineProps({
 
 const graphData = computed(() => props.cellData?.graphData)
 
-const instance = getCurrentInstance()
-const proxy = instance?.proxy
+const graphElement = ref(null)
 
 const render = () => {
-  if (Array.isArray(graphData.value) && graphData.value.length > 0 && proxy?.$el) {
+  if (Array.isArray(graphData.value) && graphData.value.length > 0 && graphElement.value) {
     initChart({
-      $el: proxy.$el,
+      element: graphElement.value,
       width: props.width,
       height: props.height,
       padding: props.padding,
@@ -147,16 +145,14 @@ onMounted(() => {
 })
 
 watch(graphData, () => {
-  if (Array.isArray(graphData.value) && graphData.value.length > 0 && proxy?.$el) {
-    const element = $(proxy.$el).children('.d3-graph')[0]
-    $(element).children('svg').remove()
-    render()
-  }
+  if (!graphElement.value) return
+  d3.select(graphElement.value).selectAll('svg').remove()
+  render()
 })
 </script>
 
 <template>
   <td class="unpadded-cell">
-    <div class="d3-graph d3-feedback-trend" />
+    <div ref="graphElement" class="d3-graph d3-feedback-trend" />
   </td>
 </template>
