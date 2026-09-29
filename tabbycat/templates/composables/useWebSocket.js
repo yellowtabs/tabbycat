@@ -3,9 +3,12 @@ class WebSocketBridge {
   constructor() {
     this.socket = null
     this.listeners = {}
+    this.disposed = false
+    this.reconnectTimer = null
   }
 
   connect(url, protocols = [], options = {}) {
+    if (this.disposed) return
     this.socket = new WebSocket(url, protocols)
 
     this.socket.onopen = () => {
@@ -37,10 +40,12 @@ class WebSocketBridge {
     let currentDelay = minDelay
 
     this.socket.onclose = () => {
+      if (this.disposed) return
       this.emit('disconnected')
 
-      setTimeout(() => {
-        if (this.socket.readyState === WebSocket.CLOSED) {
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null
+        if (!this.disposed && this.socket.readyState === WebSocket.CLOSED) {
           this.connect(url, protocols, options)
           currentDelay = Math.min(currentDelay * delayFactor, maxDelay)
         }
@@ -74,6 +79,11 @@ class WebSocketBridge {
   }
 
   close() {
+    this.disposed = true
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     if (this.socket) {
       this.socket.close()
     }
@@ -196,16 +206,16 @@ export function useWebSocket (options) {
         receiveFromSocket(socketLabel, payload.data)
       })
 
-      webSocketBridge.socket.addEventListener('open', (() => {
+      webSocketBridge.addEventListener('connected', (() => {
         logConnectionInfo('connected to', socketPath)
         dismissLostConnectionAlert()
       }).bind(socketPath))
 
-      webSocketBridge.socket.addEventListener('error', (() => {
+      webSocketBridge.addEventListener('error', (() => {
         logConnectionInfo('error in', socketPath)
       }).bind(socketPath))
 
-      webSocketBridge.socket.addEventListener('close', (() => {
+      webSocketBridge.addEventListener('disconnected', (() => {
         lostConnections.value += 1
         logConnectionInfo('disconnected from', socketPath)
         showLostConnectionAlert()
@@ -218,7 +228,7 @@ export function useWebSocket (options) {
   onBeforeUnmount(() => {
     for (const [label, bridge] of Object.entries(bridges)) {
       try {
-        bridge?.socket?.close()
+        bridge?.close()
       } catch (e) {
         // noop
       }
