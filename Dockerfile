@@ -6,9 +6,9 @@ FROM python:3.11
 SHELL ["/bin/bash", "--login", "-c"]
 
 # Just needed for all things python (note this is setting an env variable)
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED 1
 # Needed for correct settings input
-ENV IN_DOCKER=1
+ENV IN_DOCKER 1
 
 # Setup Node/NPM
 RUN apt-get update
@@ -25,9 +25,10 @@ RUN nvm install && nvm use
 RUN git config --global url."https://".insteadOf git://
 
 # Install our node/python requirements
+RUN pip install --upgrade pip
 RUN pip install pipenv
-RUN pipenv sync --system
-RUN npm ci --only=production
+RUN pipenv install --system --deploy
+RUN npm ci
 
 # Compile all the static files
 RUN npm run build

@@ -1,12 +1,11 @@
 import json
 import logging
 from dataclasses import asdict
-from email.utils import formataddr, parseaddr
 from os import environ
-from time import time
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from urllib import error as urllib_error
 from urllib import request as urllib_request
+from email.utils import formataddr, parseaddr
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from channels.consumer import SyncConsumer
 from django.conf import settings
@@ -18,11 +17,12 @@ from draw.models import Debate
 from participants.models import Person
 from tournaments.models import Round, Tournament
 
+from .email_tracking import build_hook_id, send_tracked_emails, tournament_from_email
 from .models import BulkNotification, EmailStatus, SentMessage
-from .utils import (AdjudicatorAssignmentEmailGenerator, BallotsEmailGenerator, MotionReleaseEmailGenerator,
-                    NotificationContextGenerator, RandomizedUrlEmailGenerator, StandingsEmailGenerator,
+from .utils import (AdjudicatorAssignmentEmailGenerator, BallotsEmailGenerator, InstitutionCustomEmailGenerator,
+                    InstitutionRegistrationEmailGenerator, MotionReleaseEmailGenerator, NotificationContextGenerator,
+                    RandomizedUrlEmailGenerator, SlotsAllocatedEmailGenerator, StandingsEmailGenerator,
                     TeamDrawEmailGenerator, TeamSpeakerEmailGenerator)
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,9 @@ class NotificationQueueConsumer(SyncConsumer):
         BulkNotification.EventType.MOTIONS: MotionReleaseEmailGenerator,
         BulkNotification.EventType.TEAM_REG: TeamSpeakerEmailGenerator,
         BulkNotification.EventType.TEAM_DRAW: TeamDrawEmailGenerator,
+        BulkNotification.EventType.INSTITUTION_REG: InstitutionRegistrationEmailGenerator,
+        BulkNotification.EventType.SLOTS_ALLOCATED: SlotsAllocatedEmailGenerator,
+        BulkNotification.EventType.INSTITUTION_CUSTOM: InstitutionCustomEmailGenerator,
         BulkNotification.EventType.CUSTOM: NotificationContextGenerator,
     }
 
@@ -275,25 +278,37 @@ class NotificationQueueConsumer(SyncConsumer):
         messages = []
         records = []
         for instance, recipient in contexts:
-            data = asdict(instance)
-            data['USER'] = recipient.name
+            hook_id = build_hook_id(bulk_notification.id, recipient.id)
+            data = None
+            try:
+                data = asdict(instance)
+                data['USER'] = recipient.name
 
-            hook_id = str(bulk_notification.id) + "-" + str(recipient.id) + "-" + str(int(time()))[4:]
-            context = Context(data)
-            body = html_body.render(context)
-            email = mail.EmailMultiAlternatives(
-                subject=subject.render(context), body=html2text(body),
-                from_email=from_email, to=[formataddr((recipient.name.strip(), recipient.email))],
-                reply_to=reply_to, headers=self._tracking_headers(t, hook_id),
-            )
-            email.attach_alternative(body, "text/html")
+                context = Context(data)
+                body = html_body.render(context)
+                email = mail.EmailMultiAlternatives(
+                    subject=subject.render(context), body=html2text(body),
+                    from_email=from_email, to=[formataddr((recipient.name.strip(), recipient.email))],
+                    reply_to=reply_to, headers=self._tracking_headers(t, hook_id),
+                )
+                email.attach_alternative(body, "text/html")
+                raw_message = email.message()
+            except Exception as e:
+                logger.warning("Failed to prepare email for recipient %s", recipient.id, exc_info=True)
+                failed_record = SentMessage.objects.create(
+                    recipient=recipient, email=recipient.email, method=SentMessage.METHOD_TYPE_EMAIL,
+                    context=data, hook_id=hook_id, notification=bulk_notification,
+                )
+                EmailStatus.objects.create(
+                    email=failed_record, event=EmailStatus.EventType.FAILED, data={'error': str(e)},
+                )
+                continue
+
             messages.append(email)
-
-            raw_message = email.message()
             records.append(
                 SentMessage(recipient=recipient, email=recipient.email,
                             method=SentMessage.METHOD_TYPE_EMAIL,
                             context=data, message_id=raw_message['Message-ID'],
                             hook_id=hook_id, notification=bulk_notification))
 
-        self._send(messages, records)
+        send_tracked_emails(messages, records)

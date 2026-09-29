@@ -4,6 +4,7 @@
 # Dependencies
 node_modules/
 venv/
+.git
 
 # Compilations
 tabbycat/staticfiles/

@@ -3,6 +3,7 @@ import logging
 import hashlib
 import hmac
 from datetime import datetime, timezone
+from email.utils import formataddr
 from os import environ
 from smtplib import SMTPException, SMTPResponseException
 from time import time
@@ -12,6 +13,8 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
 from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db.models import Prefetch, Q
 from django.http import HttpResponse
 from django.utils.decorators import method_decorator
@@ -193,7 +196,10 @@ class EmailStatusView(AdministratorMixin, TournamentMixin, VueTableTemplateView)
                         },
                     }
                     emails_status.append(status_cell)
-                    emails_time.append({'text': formats.time_format(latest_status.timestamp.astimezone(tz=site_tz), use_l10n=True), 'sort': latest_status.timestamp})
+                    emails_time.append({
+                        'text': formats.time_format(latest_status.timestamp.astimezone(tz=site_tz), use_l10n=True),
+                        'sort': latest_status.timestamp.timestamp(),
+                    })
                 else:
                     emails_status.append(self.NA_CELL)
                     emails_time.append(self.NA_CELL)
@@ -243,12 +249,10 @@ class YellowTabsSesEventWebhookView(View):
     def post(self, request: 'HttpRequest', *args, **kwargs) -> HttpResponse:
         if not _verify_yellowtabs_signature(request):
             return HttpResponse(status=403)
-
         try:
             obj = json.loads(request.body)
         except ValueError:
             return HttpResponse(status=400)
-
         hook_id = obj.get('hookId')
         sns_message_id = obj.get('snsMessageId')
         event = obj.get('event')
@@ -256,14 +260,11 @@ class YellowTabsSesEventWebhookView(View):
             return HttpResponse(status=400)
         if event not in EmailStatus.EventType.values:
             return HttpResponse(status=400)
-
         record = SentMessage.objects.filter(hook_id=hook_id).first()
         if record is None:
             return HttpResponse(status=202)
-
         if EmailStatus.objects.filter(data__snsMessageId=sns_message_id).exists():
             return HttpResponse(status=200)
-
         EmailStatus.objects.create(email=record, event=event, data=obj)
         return HttpResponse(status=201)
 
@@ -306,7 +307,7 @@ class BaseSelectPeopleEmailView(AdministratorMixin, TournamentMixin, VueTableTem
         if email_count > 0:
             messages.success(self.request, text)
         else:
-            messages.warning(self.request, _("No emails were sent — likely because no recipients were selected."))
+            messages.warning(self.request, _("No emails were queued — likely because no valid recipients were selected."))
 
     def get_person_type(self, person: Person, **kwargs) -> str:
         return 'adj' if kwargs['mixed'] and hasattr(person, 'adjudicator') else 'spk'
@@ -370,20 +371,49 @@ class TemplateEmailCreateView(BaseSelectPeopleEmailView):
 
         return initial
 
+    def get_valid_email_recipient_ids(self, selected_ids: List[int]) -> List[int]:
+        recipients = self.get_queryset().in_bulk(selected_ids)
+        valid_ids = []
+        invalid_recipients = []
+
+        for recipient_id in selected_ids:
+            recipient = recipients.get(recipient_id)
+            if recipient is None:
+                continue
+            try:
+                validate_email(recipient.email)
+                formataddr((recipient.name.strip(), recipient.email))
+            except (ValidationError, UnicodeError, ValueError):
+                invalid_recipients.append(recipient)
+            else:
+                valid_ids.append(recipient_id)
+
+        if invalid_recipients:
+            recipient_names = ", ".join(recipient.name for recipient in invalid_recipients)
+            messages.warning(self.request, ngettext(
+                "The email to %(recipients)s was not queued because the email address is invalid.",
+                "Emails to %(recipients)s were not queued because their email addresses are invalid.",
+                len(invalid_recipients),
+            ) % {'recipients': recipient_names})
+
+        return valid_ids
+
     def form_valid(self, form: BasicEmailForm) -> 'HttpResponseRedirect':
         if hasattr(self, 'subject_template'):
             self.tournament.preferences[self.subject_template] = form.cleaned_data['subject_line']
             self.tournament.preferences[self.message_template] = form.cleaned_data['message_body']
-        email_recipients = list(map(int, self.request.POST.getlist('recipients')))
+        selected_ids = list(map(int, self.request.POST.getlist('recipients')))
+        email_recipients = self.get_valid_email_recipient_ids(selected_ids)
 
-        async_to_sync(get_channel_layer().send)("notifications", {
-            "type": "email",
-            "message": self.event,
-            "extra": self.get_extra(),
-            "send_to": email_recipients,
-            "subject": form.cleaned_data['subject_line'],
-            "body": form.cleaned_data['message_body'],
-        })
+        if email_recipients:
+            async_to_sync(get_channel_layer().send)("notifications", {
+                "type": "email",
+                "message": self.event,
+                "extra": self.get_extra(),
+                "send_to": email_recipients,
+                "subject": form.cleaned_data['subject_line'],
+                "body": form.cleaned_data['message_body'],
+            })
 
         self.add_sent_notification(len(email_recipients))
         return super().form_valid(form)
