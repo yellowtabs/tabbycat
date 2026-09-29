@@ -629,9 +629,14 @@ class InstitutionAdjRuleView(TournamentMixin, AdministratorMixin, VueTableTempla
             debate__round__draw_status=Round.Status.NONE,
         ).order_by('adjudicator__institution_id').values('debate__round_id', 'adjudicator__institution_id').annotate(Count('id'))
 
-        reg_teams = {r['institution_id']: r['id__count'] for r in Team.objects.values('institution_id').annotate(Count('id'))}
+        reg_teams = {
+            r['institution_id']: r['id__count']
+            for r in Team.objects.filter(tournament=self.tournament).values('institution_id').annotate(Count('id'))
+        }
         reg_adjs = {
-            r['institution_id']: r['id__count'] for r in Adjudicator.objects.filter(independent=False).values('institution_id').annotate(Count('id'))
+            r['institution_id']: r['id__count']
+            for r in Adjudicator.objects.filter(tournament=self.tournament, independent=False)
+            .values('institution_id').annotate(Count('id'))
         }
 
         for inst_id, group in groupby(inst_teams, key=itemgetter('team__institution_id')):
@@ -666,7 +671,7 @@ class InstitutionAdjRuleView(TournamentMixin, AdministratorMixin, VueTableTempla
 
         table.add_column(
             {'key': 'reg', 'title': _("Registered")},
-            [create_inst_cell(0, inst, reg_teams[inst.id], reg_adjs[inst.id]) for inst in institutions],
+            [create_inst_cell(0, inst, reg_teams.get(inst.id, 0), reg_adjs.get(inst.id, 0)) for inst in institutions],
         )
 
         for round in rounds:
