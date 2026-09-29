@@ -136,7 +136,7 @@ class FeedbackOverview(AdministratorMixin, BaseFeedbackOverview):
         feedback_weight = self.tournament.current_round.feedback_weight
         scores = {adj: adj.weighted_score(feedback_weight) for adj in adjudicators}
 
-        table.add_adjudicator_columns(adjudicators, show_institutions=False, subtext='institution', link_to_record=True)
+        table.add_adjudicator_columns(adjudicators, show_institutions=False, subtext='institution')
         table.add_breaking_checkbox(adjudicators)
         table.add_tester_checkbox(adjudicators)
         table.add_weighted_score_columns(adjudicators, scores)

@@ -1,6 +1,6 @@
 <script setup>
 import { createPopper } from '@popperjs/core'
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { usePopoverManager } from '../composables/usePopoverManager.js'
 // Inheriting components should provide a getPopOverTitle() method
 // Along with providing an element with the "popover-raw" class as a direct
@@ -23,6 +23,11 @@ const hoveringPopOver = ref(false)
 const popperInstance = ref(null)
 const uid = ref(Math.floor(Math.random() * 1000000))
 
+const positionVisiblePopover = () => {
+  // Popper measures a hidden element as zero-sized. Recalculate after v-show.
+  nextTick(() => popperInstance.value?.update?.())
+}
+
 const setHoveringPopOver = (value) => {
   hoveringPopOver.value = value
 }
@@ -40,14 +45,15 @@ const togglePopOver = (event) => {
       setTimeout(() => hidePopOver(), 150)
     } else {
       showingPopOver.value = true
+      positionVisiblePopover()
     }
   }
 }
 
 const showPopOver = () => {
   registerPopover(uid.value)
-  popperInstance.value?.setOptions?.({ placement: 'bottom' })
   showingPopOver.value = true
+  nextTick(() => popperInstance.value?.setOptions?.({ placement: 'bottom' }))
 }
 
 watch(activePopoverUid, () => {
