@@ -1012,9 +1012,9 @@ class BaseFeedbackToggleView(AdministratorMixin, TournamentMixin, PostOnlyRedire
         result = self.feedback_result(feedback)
         message = _(
             "Feedback for %(adjudicator)s from %(source)s is now %(result)s.") % {
-                'adjudicator': feedback.adjudicator.get_public_name(self.tournament),
-                'source': source, 'result': result,
-            }
+            'adjudicator': feedback.adjudicator.get_public_name(self.tournament),
+            'source': source, 'result': result,
+        }
 
         if request.headers.get('Accept') == 'application/json':
             if feedback.confirmed and isinstance(self, ConfirmFeedbackView):

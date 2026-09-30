@@ -1,11 +1,11 @@
 import json
 import logging
 from dataclasses import asdict
+from email.utils import formataddr, parseaddr
 from os import environ
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from urllib import error as urllib_error
 from urllib import request as urllib_request
-from email.utils import formataddr, parseaddr
-from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 from channels.consumer import SyncConsumer
 from django.conf import settings
@@ -17,7 +17,7 @@ from draw.models import Debate
 from participants.models import Person
 from tournaments.models import Round, Tournament
 
-from .email_tracking import build_hook_id, send_tracked_emails, tournament_from_email
+from .email_tracking import build_hook_id, send_tracked_emails
 from .models import BulkNotification, EmailStatus, SentMessage
 from .utils import (AdjudicatorAssignmentEmailGenerator, BallotsEmailGenerator, InstitutionCustomEmailGenerator,
                     InstitutionRegistrationEmailGenerator, MotionReleaseEmailGenerator, NotificationContextGenerator,

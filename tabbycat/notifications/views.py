@@ -1,7 +1,7 @@
-import json
-import logging
 import hashlib
 import hmac
+import json
+import logging
 from datetime import datetime, timezone
 from email.utils import formataddr
 from os import environ
@@ -17,13 +17,13 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db.models import Prefetch, Q
 from django.http import HttpResponse
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse_lazy
 from django.utils import formats
+from django.utils.decorators import method_decorator
 from django.utils.html import escape
 from django.utils.timezone import get_default_timezone
 from django.utils.translation import gettext as _, gettext_lazy, ngettext
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic.base import View
 from django.views.generic.edit import FormView
 

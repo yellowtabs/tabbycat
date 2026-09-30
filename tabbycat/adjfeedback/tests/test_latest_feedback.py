@@ -1,7 +1,7 @@
-from unittest.mock import Mock, patch
-from types import SimpleNamespace
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from django.test import RequestFactory, SimpleTestCase
 

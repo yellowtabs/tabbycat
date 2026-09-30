@@ -24,7 +24,7 @@ MAX_ENTRIES = 10_000
 MAX_BYTES = 128 * 1024 * 1024
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 UNSAFE_PREFIXES = ("/admin/", "/database/", "/allocation/", "/notifications/", "/accounts/", "/login/")
-LINK_RE = re.compile(r'''(?:href|src)=["']([^"'#]+)''', re.I)
+LINK_RE = re.compile(r"""(?:href|src)=["']([^"'#]+)""", re.I)
 
 
 def canonical(value: str) -> str | None:
@@ -89,7 +89,12 @@ class Command(BaseCommand):
                     raise CommandError("snapshot exceeds tenant byte limit")
                 body_name = hashlib.sha256(url.encode()).hexdigest()
                 (bodies / body_name).write_bytes(body)
-                headers = {name: response[name] for name in ("Content-Type", "Content-Language", "Cache-Control", "ETag", "Last-Modified", "Location", "X-Robots-Tag", "Referrer-Policy") if response.has_header(name)}
+                headers = {
+                    name: response[name]
+                    for name in ("Content-Type", "Content-Language", "Cache-Control", "ETag", "Last-Modified",
+                                 "Location", "X-Robots-Tag", "Referrer-Policy")
+                    if response.has_header(name)
+                }
                 entries["GET " + url] = {
                     "status": response.status_code,
                     "headers": headers,
