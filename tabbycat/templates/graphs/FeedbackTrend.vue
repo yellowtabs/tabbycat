@@ -24,7 +24,8 @@ function render () {
   const { baseScore, minScore, maxScore, roundSeq, scoreStep } = props.cellData || {}
   if (!Array.isArray(data) || !roundSeq || minScore >= maxScore) return
 
-  const xScale = d3.scaleLinear().domain([0, roundSeq]).range([0, props.width])
+  const xDomain = roundSeq === 1 ? [0.5, 1.5] : [1, roundSeq]
+  const xScale = d3.scaleLinear().domain(xDomain).range([0, props.width])
   const yScale = d3.scaleLinear().domain([minScore, maxScore]).range([props.height, 0])
   const svg = root.append('svg')
     .attr('width', props.width + 2 * props.padding)
@@ -58,14 +59,28 @@ function render () {
     .call(d3.axisLeft(yScale).tickValues(yTicks).tickSizeInner(-props.width)
       .tickSizeOuter(0).tickFormat(d => (d === minScore || d === maxScore ? d3.format('~g')(d) : '')))
 
+  tooltip = d3.select('body').append('div')
+    .attr('class', 'd3-tooltip tooltip')
+    .style('opacity', 0)
+  const showTooltip = (event, label) => {
+    tooltip.style('opacity', 0.95)
+      .style('left', `${event.pageX}px`)
+      .style('top', `${event.pageY - 28}px`)
+      .selectAll('.tooltip-inner').data([label]).join('div')
+      .attr('class', 'tooltip-inner')
+      .text(label)
+  }
+
   if (baseScore !== null && baseScore !== undefined) {
     svg.append('line')
       .attr('class', 'feedback-base-line')
-      .attr('x1', xScale(0)).attr('x2', xScale(roundSeq))
+      .attr('x1', xScale(xDomain[0])).attr('x2', xScale(xDomain[1]))
       .attr('y1', yScale(baseScore)).attr('y2', yScale(baseScore))
-      .attr('stroke', '#6c757d').attr('stroke-width', 1.5)
+      .attr('stroke', '#9ca3af').attr('stroke-width', 2)
       .attr('stroke-dasharray', '4 3')
-    svg.append('title').text(`Base score: ${baseScore}`)
+      .attr('pointer-events', 'stroke')
+      .on('pointerenter pointermove', event => showTooltip(event, `Base score: ${baseScore}`))
+      .on('pointerleave', () => tooltip.style('opacity', 0))
   }
 
   if (!data.length) return
@@ -74,14 +89,10 @@ function render () {
     .datum(sorted)
     .attr('class', 'feedback-cumulative-line')
     .attr('fill', 'none')
-    .attr('stroke', '#2874a6')
+    .attr('stroke', '#6c757d')
     .attr('stroke-width', 2)
     .attr('d', d3.line().x(d => xScale(d.x)).y(d => yScale(d.cumulative))
-      .curve(d3.curveStepAfter))
-
-  tooltip = d3.select('body').append('div')
-    .attr('class', 'd3-tooltip tooltip')
-    .style('opacity', 0)
+      .curve(d3.curveLinear))
 
   svg.selectAll('.feedback-round-point').data(sorted).enter().append('circle')
     .attr('class', d => `feedback-round-point hoverable position-display d3-hover-black ${d.position_class || ''}`)
@@ -93,12 +104,7 @@ function render () {
     .on('pointerenter pointermove', (event, d) => {
       const role = d.position ? ` as ${d.position}` : ''
       const tested = d.tested ? ' (tested)' : ''
-      tooltip.style('opacity', 0.95)
-        .style('left', `${event.pageX}px`)
-        .style('top', `${event.pageY - 28}px`)
-        .selectAll('.tooltip-inner').data([d]).join('div')
-        .attr('class', 'tooltip-inner')
-        .text(`R${d.x}${role}${tested}: average ${d.y} from ${d.count} feedback; cumulative ${d.cumulative} from ${d.cumulative_count} feedback`)
+      showTooltip(event, `R${d.x}${role}${tested}: average ${d.y} from ${d.count} feedback; cumulative ${d.cumulative} from ${d.cumulative_count} feedback`)
     })
     .on('pointerleave', () => tooltip.style('opacity', 0))
 }
