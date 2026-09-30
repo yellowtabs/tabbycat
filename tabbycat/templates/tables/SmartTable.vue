@@ -145,7 +145,11 @@ const resolveCellComponent = (cellData) => {
 </script>
 
 <template>
-  <div class="table-responsive-md" :class="{ 'table-responsive': hasFeedbackTrend }">
+  <div
+    class="table-responsive-md"
+    :class="{ 'table-responsive': hasFeedbackTrend }"
+    :style="hasFeedbackTrend ? { overflowY: 'hidden' } : undefined"
+  >
     <table
       class="table"
       :class="tableClass"
