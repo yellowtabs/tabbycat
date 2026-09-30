@@ -142,7 +142,7 @@ class FeedbackTableBuilder(TabbycatTableBuilder):
         feedback_head = {
             'key': 'feedback',
             'title': _('Feedback Per Round'),
-            'tooltip': _("Dots show each round's average and feedback count; line shows the cumulative feedback average; dashed line is the base score"),
+            'tooltip': _("Line connects each round's average feedback score; dashed line is the base score. Hover over dots for counts and cumulative average."),
         }
         feedback_graph_data = [{
             'graphData': adj.feedback_data,
