@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 
 from django.db import connection
-from django.test import RequestFactory, TestCase
 from django.template.loader import render_to_string
+from django.test import RequestFactory, TestCase
 from django.test.utils import CaptureQueriesContext
 
 from adjallocation.models import DebateAdjudicator
