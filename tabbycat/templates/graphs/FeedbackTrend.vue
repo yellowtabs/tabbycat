@@ -35,12 +35,18 @@ function render () {
     .append('g')
     .attr('transform', `translate(${props.padding},${props.padding})`)
 
-  svg.append('g')
+  const xAxis = svg.append('g')
     .attr('class', 'x axis')
     .attr('transform', `translate(0,${props.height})`)
     .call(d3.axisBottom(xScale).tickValues(d3.range(1, roundSeq + 1))
       .tickSizeInner(-props.height).tickSizeOuter(0)
       .tickFormat(d => (d === 1 || d === roundSeq ? `R${d}` : '')))
+  xAxis.selectAll('.tick').filter(d => d === 1).select('text')
+    .attr('text-anchor', 'start').attr('dx', '0.6em')
+  if (roundSeq > 1) {
+    xAxis.selectAll('.tick').filter(d => d === roundSeq).select('text')
+      .attr('text-anchor', 'end').attr('dx', '-0.6em')
+  }
 
   const step = Number(scoreStep)
   const tickCount = Number.isFinite(step) && step > 0
@@ -93,6 +99,19 @@ function render () {
     .attr('stroke-width', 2)
     .attr('d', d3.line().x(d => xScale(d.x)).y(d => yScale(d.cumulative))
       .curve(d3.curveLinear))
+
+  svg.selectAll('.feedback-cumulative-point').data(sorted).enter().append('circle')
+    .attr('class', 'feedback-cumulative-point')
+    .attr('cx', d => xScale(d.x))
+    .attr('cy', d => yScale(d.cumulative))
+    .attr('r', 4)
+    .attr('fill', '#fff')
+    .attr('stroke', '#6c757d')
+    .attr('stroke-width', 2)
+    .on('pointerenter pointermove', (event, d) => {
+      showTooltip(event, `Through R${d.x}: cumulative average ${d.cumulative} from ${d.cumulative_count} feedback`)
+    })
+    .on('pointerleave', () => tooltip.style('opacity', 0))
 
   svg.selectAll('.feedback-round-point').data(sorted).enter().append('circle')
     .attr('class', d => `feedback-round-point hoverable position-display d3-hover-black ${d.position_class || ''}`)
