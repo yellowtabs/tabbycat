@@ -149,8 +149,7 @@ def feedback_stats(adj, rounds, tested_rounds=frozenset()):
         DebateAdjudicator.TYPE_TRAINEE: "trainee",
     }
 
-    # Start with base score
-    feedback_data = [{'x': 0, 'y': adj.base_score, 'position': "Base Score"}]
+    feedback_data = []
 
     # Sort into rounds
     feedback_by_round = {r: [] for r in rounds}
@@ -161,14 +160,22 @@ def feedback_stats(adj, rounds, tested_rounds=frozenset()):
     for da in adj.debateadjs_for_rounds:
         debateadjs_by_round[da.debate.round] = da
 
+    total_score = 0
+    total_count = 0
     for r in rounds:
         scores = [fb.score for fb in feedback_by_round[r]]
-        if scores and debateadjs_by_round[r]:
+        if scores:
+            total_score += sum(scores)
+            total_count += len(scores)
+            debateadj = debateadjs_by_round[r]
             feedback_data.append({
                 'x': r.seq,
                 'y': round(mean(scores), 2),  # average score
-                'position_class': adj_classes[debateadjs_by_round[r].type],
-                'position': debateadjs_by_round[r].get_type_display(),
+                'count': len(scores),
+                'cumulative': round(total_score / total_count, 2),
+                'cumulative_count': total_count,
+                'position_class': adj_classes[debateadj.type] if debateadj else '',
+                'position': debateadj.get_type_display() if debateadj else '',
                 'tested': r.id in tested_rounds,
             })
 

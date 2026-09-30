@@ -138,17 +138,19 @@ class FeedbackTableBuilder(TabbycatTableBuilder):
         self.add_column(diff_header, diff_data)
 
     def add_feedback_graphs(self, adjudicators):
-        nprelims = self.tournament.prelim_rounds().count()
+        nprelims = self.tournament.prelim_rounds().order_by('-seq').values_list('seq', flat=True).first() or 0
         feedback_head = {
             'key': 'feedback',
             'title': _('Feedback Per Round'),
-            'tooltip': _("Hover over the data points to show the average score received in that round"),
+            'tooltip': _("Dots show each round's average and feedback count; line shows the cumulative feedback average; dashed line is the base score"),
         }
         feedback_graph_data = [{
             'graphData': adj.feedback_data,
             'component': 'feedback-trend',
+            'baseScore': adj.base_score,
             'minScore': self.tournament.pref('adj_min_score'),
             'maxScore': self.tournament.pref('adj_max_score'),
+            'scoreStep': self.tournament.pref('adj_score_step'),
             'roundSeq': nprelims,
         } for adj in adjudicators]
         self.add_column(feedback_head, feedback_graph_data)
