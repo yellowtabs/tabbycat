@@ -1,6 +1,6 @@
 # Needs
 
 sphinx==8.2.3
-sphinx-autobuild==2024.10.3
+sphinx-autobuild==2025.8.25
 sphinx_rtd_theme==3.0.2
 sphinx-intl==2.3.1
