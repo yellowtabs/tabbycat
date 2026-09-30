@@ -4,7 +4,7 @@ import * as d3 from 'd3'
 
 const props = defineProps({
   cellData: Object,
-  width: { type: Number, default: 425 },
+  width: { type: Number, default: 300 },
   height: { type: Number, default: 65 },
   padding: { type: Number, default: 20 },
 })

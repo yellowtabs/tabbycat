@@ -33,6 +33,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['saved', 'toggle-checked'])
+const hasFeedbackTrend = computed(() => props.tableHeaders?.some(header => header.key === 'feedback'))
 
 const rows = computed(() => {
   const rows = []
@@ -144,7 +145,7 @@ const resolveCellComponent = (cellData) => {
 </script>
 
 <template>
-  <div class="table-responsive-md">
+  <div class="table-responsive-md" :class="{ 'table-responsive': hasFeedbackTrend }">
     <table
       class="table"
       :class="tableClass"
