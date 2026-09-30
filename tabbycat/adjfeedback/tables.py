@@ -29,6 +29,26 @@ class FeedbackTableBuilder(TabbycatTableBuilder):
 
         self.add_column(breaking_header, breaking_data)
 
+    def add_tester_checkbox(self, adjudicators):
+        tester_header = {
+            'key': 'tester',
+            'icon': 'check-circle',
+            'tooltip': _("Whether the adj tests other adjs (click to mark). "
+                         "Adjudication core members are always testers"),
+        }
+        tester_data = [{
+            'component': 'check-cell',
+            'checked': adj.adj_core or adj.is_tester,
+            'sort': adj.adj_core or adj.is_tester,
+            'type': 'tester',
+            'saveURL': reverse_tournament('adjfeedback-set-adj-tester-status', self.tournament),
+            'id': adj.pk,
+            'disabled': adj.adj_core,
+            'disabledTooltip': str(_("On the adjudication core, so always a tester")),
+        } for adj in adjudicators]
+
+        self.add_column(tester_header, tester_data)
+
     @staticmethod
     def get_formatted_adj_score(score, strong=False):
         if score is None:
@@ -83,6 +103,7 @@ class FeedbackTableBuilder(TabbycatTableBuilder):
         }
         feedback_data = [{
             'text': self.get_formatted_adj_score(adj.feedback_score),
+            'sort': adj.feedback_score,
             'tooltip': _("This adjudicator's feedback average"),
         } for adj in adjudicators]
 
@@ -110,23 +131,26 @@ class FeedbackTableBuilder(TabbycatTableBuilder):
         }
         diff_data = [{
             'text': self.get_formatted_adj_score(adj.feedback_variance) if adj.feedback_variance is not None else '',
+            'sort': adj.feedback_variance,
             'tooltip': _("The standard deviation of this adjudicator's current scores"),
         } for adj in adjudicators]
 
         self.add_column(diff_header, diff_data)
 
     def add_feedback_graphs(self, adjudicators):
-        nprelims = self.tournament.prelim_rounds().count()
+        nprelims = self.tournament.prelim_rounds().order_by('-seq').values_list('seq', flat=True).first() or 0
         feedback_head = {
             'key': 'feedback',
             'title': _('Feedback Per Round'),
-            'tooltip': _("Hover over the data points to show the average score received in that round"),
+            'tooltip': _("Line connects each round's average feedback score; dashed line is the base score. Hover over dots for counts and cumulative average."),
         }
         feedback_graph_data = [{
             'graphData': adj.feedback_data,
             'component': 'feedback-trend',
+            'baseScore': adj.base_score,
             'minScore': self.tournament.pref('adj_min_score'),
             'maxScore': self.tournament.pref('adj_max_score'),
+            'scoreStep': self.tournament.pref('adj_score_step'),
             'roundSeq': nprelims,
         } for adj in adjudicators]
         self.add_column(feedback_head, feedback_graph_data)
@@ -165,6 +189,22 @@ class FeedbackTableBuilder(TabbycatTableBuilder):
         }
         owed_data = [_owed_cell(progress) for progress in progress_list]
         self.add_column(owed_header, owed_data)
+
+        def _percentage_cell(progress):
+            p = progress.num_fulfilled() / progress.num_expected() * 100 if progress.num_expected() else 100
+            cell = {
+                'text': '%.1f%%' % p,
+                'sort': p,
+            }
+            return cell
+
+        percentage_header = {
+            'key': 'percent',
+            'icon': 'percent',
+            'tooltip': _("% Submitted"),
+        }
+        percentage_data = [_percentage_cell(progress) for progress in progress_list]
+        self.add_column(percentage_header, percentage_data)
 
         if self._show_record_links:
 

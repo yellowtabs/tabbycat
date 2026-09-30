@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Exists, OuterRef, Prefetch, Q
+from django.utils.module_loading import import_string
 from django.utils.text import format_lazy
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
@@ -93,9 +94,13 @@ class RandomisedUrlsView(RandomisedUrlsMixin, VueTableTemplateView):
         return table
 
     def get_speakers_table(self) -> TabbycatTableBuilder:
-        speakers = Speaker.objects.filter(team__tournament=self.tournament)
+        speakers = Speaker.objects.select_related('team').prefetch_related('team__speaker_set').filter(team__tournament=self.tournament)
         table = TabbycatTableBuilder(view=self, title=_("Speakers"), sort_key="name")
         table.add_speaker_columns(speakers, categories=False)
+        table.add_column(
+            {'key': 'team', 'tooltip': _("Team"), 'icon': 'users'},
+            [table._team_cell(speaker.team, show_emoji=True) for speaker in speakers],
+        )
         self.add_url_columns(table, speakers, self.request)
 
         return table
@@ -211,6 +216,7 @@ class PersonIndexView(SingleObjectByRandomisedUrlMixin, PersonalizablePublicTour
         self.object = self.get_object()
         t = self.tournament
 
+        draw_released = False
         try:
             checkin_id = PersonIdentifier.objects.get(person=self.object)
             kwargs['checkins_used'] = True
@@ -227,18 +233,27 @@ class PersonIndexView(SingleObjectByRandomisedUrlMixin, PersonalizablePublicTour
 
         if hasattr(self.object, 'adjudicator'):
             kwargs['debateadjudications'] = BaseRecordView.allocations_set(self.object.adjudicator, False, self.tournament)
+            draw_released = t.current_round.draw_status == Round.Status.RELEASED
         else:
             team = self.object.speaker.team
             kwargs['debateteams'] = BaseRecordView.allocations_set(team, False, self.tournament)
+            draw_released = t.current_round.draw_status in [
+                Round.Status.TEAMS_RELEASED,
+                Round.Status.RELEASED,
+            ]
 
             if invitation := team.invitation_set.first():
                 kwargs['speaker_invite_link'] = self.request.build_absolute_uri(
                     reverse_tournament('reg-create-speaker', self.tournament, kwargs={'pk': team.pk}) + '?key=' + invitation.url_key,
                 )
 
-        kwargs['draw_released'] = t.current_round.draw_status == Round.Status.RELEASED
+        kwargs['draw_released'] = draw_released
         kwargs['feedback_pref'] = t.pref('participant_feedback') == 'private-urls'
         kwargs['ballots_pref'] = t.pref('participant_ballots') == 'private-urls'
         kwargs['vapid_application_server_key'] = settings.PUSH_NOTIFICATIONS_SETTINGS['application_server_key']
+
+        context_provider = getattr(settings, 'PRIVATE_URL_CONTEXT_PROVIDER', None)
+        if context_provider:
+            kwargs.update(import_string(context_provider)(self))
 
         return super().get_context_data(**kwargs)

@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from django.urls import include, path
 from django.utils.translation import gettext as _
 from django.views.i18n import JavaScriptCatalog
+from django.views.static import serve
 
 import tournaments.views
 from importer.views import LoadDemoView
@@ -28,7 +29,7 @@ urlpatterns = [
         BlankSiteStartView.as_view(),
         name='blank-site-start'),
     path('create/',
-        tournaments.views.CreateTournamentView.as_view(),
+        tournaments.views.CreateTournamentWizardView.as_view(),
         name='tournament-create'),
     path('load-demo/',
         LoadDemoView.as_view(),
@@ -78,12 +79,15 @@ urlpatterns = [
         include('tournaments.urls')),
 ]
 
+urlpatterns.append(path('navigatorPush.service.js', serve, {
+    'document_root': settings.STATIC_ROOT,
+    'path': 'root/navigatorPush.service.js',
+}))
+
 if settings.DEBUG:
-    from django.views.static import serve
     urlpatterns.extend([
         path('robots.txt', serve, {'document_root': settings.STATIC_ROOT, 'path': 'root/robots.txt'}),
         path('favicon.ico', serve, {'document_root': settings.STATIC_ROOT, 'path': 'root/favicon.ico'}),
-        path('navigatorPush.service.js', serve, {'document_root': settings.STATIC_ROOT, 'path': 'root/navigatorPush.service.js'}),
     ])
 
     if settings.ENABLE_DEBUG_TOOLBAR:  # Only serve debug toolbar when on DEBUG

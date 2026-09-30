@@ -1,7 +1,7 @@
-from unittest.mock import Mock, patch
-from types import SimpleNamespace
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from django.test import RequestFactory, SimpleTestCase
 
@@ -225,10 +225,11 @@ class FeedbackToggleResponseTests(SimpleTestCase):
         request.user = SimpleNamespace()
         view = ConfirmFeedbackView()
         view.request = request
-        view._tournament_from_url = SimpleNamespace()
+        view._tournament_from_url = SimpleNamespace(id=1)
         feedback = self.make_feedback()
-        with patch.object(AdjudicatorFeedback.objects, 'get', return_value=feedback), \
+        with patch.object(AdjudicatorFeedback.objects, 'annotate') as annotated, \
                 patch.object(AdjudicatorFeedback.objects, 'filter') as filtered:
+            annotated.return_value.get.return_value = feedback
             filtered.return_value.values_list.return_value = [
                 (1, True, False), (2, False, False),
             ]
@@ -244,10 +245,11 @@ class FeedbackToggleResponseTests(SimpleTestCase):
         request = RequestFactory().post('/', HTTP_ACCEPT='application/json')
         view = IgnoreFeedbackView()
         view.request = request
-        view._tournament_from_url = SimpleNamespace()
+        view._tournament_from_url = SimpleNamespace(id=1)
         feedback = self.make_feedback()
-        with patch.object(AdjudicatorFeedback.objects, 'get', return_value=feedback), \
+        with patch.object(AdjudicatorFeedback.objects, 'annotate') as annotated, \
                 patch.object(AdjudicatorFeedback.objects, 'filter') as filtered:
+            annotated.return_value.get.return_value = feedback
             response = view.post(request, feedback_id=1)
         payload = json.loads(response.content)
         self.assertEqual(len(payload['updates']), 1)

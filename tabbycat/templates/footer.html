@@ -102,6 +102,22 @@
 
   </div>
 </div>
+{# The language form contains a request-specific CSRF token and must not be cached. #}
+{% endcache %}
+
+{# YELLOWTABS-AGPL-START #}
+<div class="row">
+  <div class="col text-center text-muted small py-2">
+    {% blocktrans trimmed %}
+      Hosted by YellowTabs. This service runs a modified copy of Tabbycat under
+      the GNU AGPL-3.0.
+    {% endblocktrans %}
+    <a href="https://github.com/yellowtabs/tabbycat" rel="nofollow noopener">
+      {% trans "View the source code" %}
+    </a>.
+  </div>
+</div>
+{# YELLOWTABS-AGPL-END #}
 
 <div class="modal fade" id="setLanguageModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" role="document">
@@ -130,19 +146,3 @@
     </div>
   </div>
 </div>
-{# YELLOWTABS-AGPL-START #}
-{# AGPL-3.0 §13: persistent link to the exact source running this instance.    #}
-{# Injected into tabbycat/templates/footer.html by settings-patch/apply.sh.    #}
-<div class="row">
-  <div class="col text-center text-muted small py-2">
-    {% blocktrans trimmed %}
-      Hosted by YellowTabs. This service runs a modified copy of Tabbycat under
-      the GNU AGPL-3.0.
-    {% endblocktrans %}
-    <a href="https://github.com/yellowtabs/tabbycat" rel="nofollow noopener">
-      {% trans "View the source code" %}
-    </a>.
-  </div>
-</div>
-{# YELLOWTABS-AGPL-END #}
-{% endcache %}

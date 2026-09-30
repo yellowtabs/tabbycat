@@ -1,151 +1,127 @@
-<template>
-
-  <td class="unpadded-cell">
-    <div class="d3-graph d3-feedback-trend"></div>
-  </td>
-
-</template>
-
-<script>
+<script setup>
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as d3 from 'd3'
 
-// returns slope, intercept and r-square of the line
-function leastSquares (xSeries, ySeries) {
-  const reduceSumFunc = function (prev, cur) { return prev + cur }
+const props = defineProps({
+  cellData: Object,
+  width: { type: Number, default: 300 },
+  height: { type: Number, default: 65 },
+  padding: { type: Number, default: 20 },
+})
 
-  const xBar = (xSeries.reduce(reduceSumFunc) * 1.0) / xSeries.length
-  const yBar = (ySeries.reduce(reduceSumFunc) * 1.0) / ySeries.length
+const graphData = computed(() => props.cellData?.graphData || [])
+const graphElement = ref(null)
+let tooltip
 
-  const ssXX = xSeries.map(d => (d - xBar) ** 2).reduce(reduceSumFunc)
-  const ssYY = ySeries.map(d => (d - yBar) ** 2).reduce(reduceSumFunc)
-  const ssXY = xSeries.map((d, i) => (d - xBar) * (ySeries[i] - yBar)).reduce(reduceSumFunc)
+function render () {
+  if (!graphElement.value) return
+  const root = d3.select(graphElement.value)
+  root.selectAll('svg').remove()
+  tooltip?.remove()
+  tooltip = undefined
 
-  const slope = ssXY / ssXX
-  const intercept = yBar - (xBar * slope)
-  const rSquare = (ssXY ** 2) / (ssXX * ssYY)
+  const data = graphData.value
+  const { baseScore, minScore, maxScore, roundSeq, scoreStep } = props.cellData || {}
+  if (!Array.isArray(data) || !roundSeq || minScore >= maxScore) return
 
-  return [slope, intercept, rSquare]
-}
-
-function initChart (vueContext) {
-  // Range is the pixel coordinates; domain is the axes range
-  const xScale = d3.scaleLinear()
-    .range([0, vueContext.width])
-    .domain([0, vueContext.cellData.roundSeq])
-
-  const yScale = d3.scaleLinear()
-    .range([vueContext.height, 0])
-    .domain([vueContext.cellData.minScore, vueContext.cellData.maxScore])
-
-  // Scale axis to fit the range specified
-  const xAxis = d3.axisBottom(xScale)
-    .tickSizeInner(-vueContext.height)
-    .tickSizeOuter(0)
-    .tickFormat('') // Hide ticks
-    .tickValues(d3.range(0, vueContext.cellData.roundSeq + 0.5, 1)) // Set tick increments
-
-  const yAxis = d3.axisLeft(yScale)
-    .tickSizeInner(-vueContext.width)
-    .tickSizeOuter(0)
-    .tickPadding(10)
-    .tickFormat('') // Hide ticks
-    // Set tick increments
-    .tickValues(d3.range(vueContext.cellData.minScore, vueContext.cellData.maxScore + 0.5, 1))
-
-  // Define the div for the tooltip
-  const div = d3.select('body').append('div')
-    .attr('class', 'd3-tooltip tooltip')
-    .style('opacity', 0)
-
-  const element = $(vueContext.$el).children('.d3-graph')[0]
-  const svg = d3.select(element).insert('svg', ':first-child')
-    .attr('width', vueContext.width + vueContext.padding + vueContext.padding)
-    .attr('height', vueContext.height + vueContext.padding + vueContext.padding)
+  const xDomain = roundSeq === 1 ? [0.5, 1.5] : [1, roundSeq]
+  const xScale = d3.scaleLinear().domain(xDomain).range([0, props.width])
+  const yScale = d3.scaleLinear().domain([minScore, maxScore]).range([props.height, 0])
+  const svg = root.append('svg')
+    .attr('width', props.width + 2 * props.padding)
+    .attr('height', props.height + 2 * props.padding)
+    .attr('role', 'img')
+    .attr('aria-label', 'Feedback by round: the line connects round-average dots; dashed line is base score')
     .append('g')
-    .attr('transform', `translate(${vueContext.padding},${vueContext.padding})`)
+    .attr('transform', `translate(${props.padding},${props.padding})`)
 
-  svg.append('g')
+  const xAxis = svg.append('g')
     .attr('class', 'x axis')
-    .attr('transform', `translate(0,${vueContext.height})`)
-    .call(xAxis)
-
-  svg.append('g')
-    .attr('class', 'y axis')
-    .call(yAxis)
-
-  // Create series for regression
-  const xLabels = vueContext.graphData.map(d => d.x)
-  const xSeries = d3.range(1, xLabels.length + 1)
-  const ySeries = vueContext.graphData.map(d => parseFloat(d.y))
-  const leastSquaresCoeff = leastSquares(xSeries, ySeries)
-
-  if (!isNaN(leastSquaresCoeff[0]) && !isNaN(leastSquaresCoeff[1])) {
-    // Apply the results of the least squares regression (if there are enough data points for it)
-    const x1 = xLabels[0]
-    const y1 = leastSquaresCoeff[0] + leastSquaresCoeff[1]
-
-    const x2 = xLabels[xLabels.length - 1]
-    const y2 = (leastSquaresCoeff[0] * xSeries.length) + leastSquaresCoeff[1]
-
-    const trendData = [[x1, y1, x2, y2]]
-    const trendline = svg.selectAll('.trendline').data(trendData)
-
-    trendline.enter()
-      .append('line')
-      .attr('class', 'trendline')
-      .attr('x1', d => xScale(d[0]))
-      .attr('y1', d => yScale(d[1]))
-      .attr('x2', d => xScale(d[2]))
-      .attr('y2', d => yScale(d[3]))
-      .attr('stroke', '#999')
-      .attr('stroke-width', 2)
+    .attr('transform', `translate(0,${props.height})`)
+    .call(d3.axisBottom(xScale).tickValues(d3.range(1, roundSeq + 1))
+      .tickSizeInner(-props.height).tickSizeOuter(0)
+      .tickFormat(d => (d === 1 || d === roundSeq ? `R${d}` : '')))
+  xAxis.selectAll('.tick').filter(d => d === 1).select('text')
+    .attr('text-anchor', 'start').attr('dx', '0.6em')
+  if (roundSeq > 1) {
+    xAxis.selectAll('.tick').filter(d => d === roundSeq).select('text')
+      .attr('text-anchor', 'end').attr('dx', '-0.6em')
   }
 
-  const circles = svg.selectAll('circle').data(vueContext.graphData)
-  circles
-    .enter().append('circle')
+  const step = Number(scoreStep)
+  const tickCount = Number.isFinite(step) && step > 0
+    ? Math.ceil((maxScore - minScore) / step)
+    : 0
+  const stride = Math.max(1, Math.ceil(tickCount / 4))
+  const yTicks = [minScore]
+  if (tickCount && tickCount < 10000) {
+    for (let i = stride; i < tickCount; i += stride) {
+      yTicks.push(Math.min(maxScore, minScore + i * step))
+    }
+  }
+  yTicks.push(maxScore)
+  svg.append('g')
+    .attr('class', 'y axis')
+    .call(d3.axisLeft(yScale).tickValues(yTicks).tickSizeInner(-props.width)
+      .tickSizeOuter(0).tickFormat(d => (d === minScore || d === maxScore ? d3.format('~g')(d) : '')))
+
+  tooltip = d3.select('body').append('div')
+    .attr('class', 'd3-tooltip tooltip')
+    .style('opacity', 0)
+  const showTooltip = (event, label) => {
+    tooltip.style('opacity', 0.95)
+      .style('left', `${event.pageX}px`)
+      .style('top', `${event.pageY - 28}px`)
+      .selectAll('.tooltip-inner').data([label]).join('div')
+      .attr('class', 'tooltip-inner')
+      .text(label)
+  }
+
+  if (baseScore !== null && baseScore !== undefined) {
+    svg.append('line')
+      .attr('class', 'feedback-base-line')
+      .attr('x1', xScale(xDomain[0])).attr('x2', xScale(xDomain[1]))
+      .attr('y1', yScale(baseScore)).attr('y2', yScale(baseScore))
+      .attr('stroke', '#9ca3af').attr('stroke-width', 2)
+      .attr('stroke-dasharray', '4 3')
+      .attr('pointer-events', 'stroke')
+      .on('pointerenter pointermove', event => showTooltip(event, `Base score: ${baseScore}`))
+      .on('pointerleave', () => tooltip.style('opacity', 0))
+  }
+
+  if (!data.length) return
+  const sorted = [...data].sort((a, b) => a.x - b.x)
+  svg.append('path')
+    .datum(sorted)
+    .attr('class', 'feedback-round-line')
+    .attr('fill', 'none')
+    .attr('stroke', '#6c757d')
+    .attr('stroke-width', 2)
+    .attr('d', d3.line().x(d => xScale(d.x)).y(d => yScale(d.y))
+      .curve(d3.curveLinear))
+
+  svg.selectAll('.feedback-round-point').data(sorted).enter().append('circle')
+    .attr('class', d => `feedback-round-point hoverable position-display d3-hover-black ${d.position_class || ''}`)
     .attr('cx', d => xScale(d.x))
     .attr('cy', d => yScale(d.y))
-    .attr('r', 5) // Size of circle
-    .attr('class', d => `hoverable position-display d3-hover-black ${d.position_class}`)
-    .on('mouseover', (event, d) => {
-      div.style('opacity', 0.9)
-      div.html(`<div class='tooltip-inner'>Received a ${d.y} as a ${d.position} in R${d.x}</div>`)
-        .style('left', `${event.pageX}px`)
-        .style('top', `${event.pageY - 28}px`)
+    .attr('r', d => Math.min(6, 3.5 + Math.sqrt(d.count) / 2))
+    .attr('stroke', d => (d.tested ? '#000' : null))
+    .attr('stroke-width', d => (d.tested ? 2 : null))
+    .on('pointerenter pointermove', (event, d) => {
+      const role = d.position ? ` as ${d.position}` : ''
+      const tested = d.tested ? ' (tested)' : ''
+      showTooltip(event, `R${d.x}${role}${tested}: average ${d.y} from ${d.count} feedback; cumulative ${d.cumulative} from ${d.cumulative_count} feedback`)
     })
-    .on('mouseout', () => {
-      div.style('opacity', 0)
-    })
+    .on('pointerleave', () => tooltip.style('opacity', 0))
 }
 
-export default {
-  props: {
-    cellData: Object,
-    width: { type: Number, default: 425 },
-    height: { type: Number, default: 55 },
-    padding: { type: Number, default: 6 },
-  },
-  computed: {
-    graphData: function () {
-      return this.cellData.graphData
-    },
-  },
-  mounted: function () {
-    if (typeof this.graphData !== 'undefined' && this.graphData.length > 0) {
-      initChart(this) // Only init if we have some info
-    }
-  },
-  watch: {
-    graphData: function () {
-      if (typeof this.graphData !== 'undefined' && this.graphData.length > 0) {
-        // Just remove and remake it as I cbf figuring out the in place update
-        const element = $(this.$el).children('.d3-graph')[0]
-        $(element).children('svg').remove()
-        initChart(this)
-      }
-    },
-  },
-}
-
+onMounted(render)
+watch(() => props.cellData, render, { deep: true })
+onBeforeUnmount(() => tooltip?.remove())
 </script>
+
+<template>
+  <td class="unpadded-cell">
+    <div ref="graphElement" class="d3-graph d3-feedback-trend" />
+  </td>
+</template>

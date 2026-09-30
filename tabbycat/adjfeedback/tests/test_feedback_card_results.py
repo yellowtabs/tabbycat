@@ -1,9 +1,9 @@
 from types import SimpleNamespace
 
 from django.db import connection
+from django.template.loader import render_to_string
 from django.test import RequestFactory, TestCase
 from django.test.utils import CaptureQueriesContext
-from django.template.loader import render_to_string
 
 from adjallocation.models import DebateAdjudicator
 from adjfeedback.models import AdjudicatorFeedback
