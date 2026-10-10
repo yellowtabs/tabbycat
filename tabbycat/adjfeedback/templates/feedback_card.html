@@ -40,13 +40,13 @@
       {% if pref.teams_in_debate == 4 %}
         {% if feedback.debate_adjudicator %}
           {% if feedback.source_adjudicator %}
-            <span class="badge badge-info">
+            <span class="badge bg-transparent border border-dark text-dark">
               {% blocktranslate trimmed with source_role=feedback.source_adjudicator.get_type_display|capfirst target_role=feedback.debate_adjudicator.get_type_display|capfirst %}
                 {{ source_role }} on {{ target_role }}
               {% endblocktranslate %}
             </span>
           {% elif feedback.source_team %}
-            <span class="badge badge-{% if pref.feedback_from_teams == 'orallist' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-voting-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-voting-adjs' and feedback.debate_adjudicator.type == 'T' %}danger{% else %}info{% endif %}">
+            <span class="badge bg-transparent border {% if pref.feedback_from_teams == 'no-one' or pref.feedback_from_teams == 'orallist' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-voting-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-voting-adjs' and feedback.debate_adjudicator.type == 'T' %}border-danger text-danger{% else %}border-dark text-dark{% endif %}">
               {% blocktranslate trimmed with target_role=feedback.debate_adjudicator.get_type_display|capfirst %}
                 Team on {{ target_role }}
               {% endblocktranslate %}
