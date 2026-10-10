@@ -37,11 +37,29 @@
       </div>
     </div>
     <div class="list-group-item h5">
-      <span class="text-{% if feedback.source_team and pref.feedback_from_teams == 'orallist' and feedback.debate_adjudicator.type != 'C' or feedback.source_team and pref.feedback_from_teams == 'all-voting-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or feedback.source_team and pref.feedback_from_teams == 'all-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or feedback.source_team and pref.feedback_from_teams == 'all-voting-adjs' and feedback.debate_adjudicator.type == 'T' %}danger{% else %}secondary{% endif %} small">
-        {% blocktranslate trimmed with as_type=feedback.debate_adjudicator.get_type_display %}
-          Received as {{ as_type }}
-        {% endblocktranslate %}
-      </span>
+      {% if pref.teams_in_debate == 4 %}
+        {% if feedback.debate_adjudicator %}
+          {% if feedback.source_adjudicator %}
+            <span class="badge badge-info">
+              {% blocktranslate trimmed with source_role=feedback.source_adjudicator.get_type_display|capfirst target_role=feedback.debate_adjudicator.get_type_display|capfirst %}
+                {{ source_role }} on {{ target_role }}
+              {% endblocktranslate %}
+            </span>
+          {% elif feedback.source_team %}
+            <span class="badge badge-{% if pref.feedback_from_teams == 'orallist' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-voting-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or pref.feedback_from_teams == 'all-voting-adjs' and feedback.debate_adjudicator.type == 'T' %}danger{% else %}info{% endif %}">
+              {% blocktranslate trimmed with target_role=feedback.debate_adjudicator.get_type_display|capfirst %}
+                Team on {{ target_role }}
+              {% endblocktranslate %}
+            </span>
+          {% endif %}
+        {% endif %}
+      {% else %}
+        <span class="text-{% if feedback.source_team and pref.feedback_from_teams == 'orallist' and feedback.debate_adjudicator.type != 'C' or feedback.source_team and pref.feedback_from_teams == 'all-voting-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or feedback.source_team and pref.feedback_from_teams == 'all-adjs-allowed' and feedback.debate_adjudicator.type != 'C' or feedback.source_team and pref.feedback_from_teams == 'all-voting-adjs' and feedback.debate_adjudicator.type == 'T' %}danger{% else %}secondary{% endif %} small">
+          {% blocktranslate trimmed with as_type=feedback.debate_adjudicator.get_type_display %}
+            Received as {{ as_type }}
+          {% endblocktranslate %}
+        </span>
+      {% endif %}
       {% if feedback.duplicate_total %}
         <span class="badge badge-warning ml-2 align-middle" data-toggle="tooltip" tabindex="0"
               title="{% blocktrans with number=feedback.duplicate_number total=feedback.duplicate_total %}Duplicate submission {{ number }} of {{ total }} from this source for this adjudicator in this debate.{% endblocktrans %}">
@@ -54,7 +72,7 @@
       {% if feedback.source_adjudicator %}
         {% person_display_name feedback.source_adjudicator.adjudicator as source %}
         <span class="font-italic font-weight-normal text-secondary" style="font-size: 0.9em">{% trans "from" %}</span> {{ source }}
-        <span class="text-secondary small">{% blocktrans trimmed with relationship=feedback.source_adjudicator.get_type_display %}(their {{ relationship }}){% endblocktrans %}</span>
+        {% if pref.teams_in_debate != 4 %}<span class="text-secondary small">{% blocktrans trimmed with relationship=feedback.source_adjudicator.get_type_display %}(their {{ relationship }}){% endblocktrans %}</span>{% endif %}
       {% elif feedback.source_team %}
         <span class="font-italic font-weight-normal text-secondary" style="font-size: 0.9em">{% trans "from" %}</span> {{ feedback.source_team.team.short_name }}
         <span class="badge badge-{{ feedback.team_result_class }} ml-1" style="font-size: 0.7em">
