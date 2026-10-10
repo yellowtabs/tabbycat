@@ -1,13 +1,13 @@
 """Bounded regression for asgiref #535 (cancelled sync/async request bridge)."""
 import asyncio
 import faulthandler
-from pathlib import Path
 import subprocess
 import sys
 import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from asgiref.sync import async_to_sync, sync_to_async, ThreadSensitiveContext
 
