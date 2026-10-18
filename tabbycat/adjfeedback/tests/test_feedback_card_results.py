@@ -42,7 +42,8 @@ class FeedbackCardResultTests(TestCase):
         return render_to_string('feedback_card.html', {
             'feedback': feedback,
             'tournament': self.tournament,
-            'pref': SimpleNamespace(feedback_from_teams='all-adjs'),
+            'pref': SimpleNamespace(feedback_from_teams='all-adjs',
+                                    teams_in_debate=self.tournament.pref('teams_in_debate')),
             'score_thresholds': {'low_score': 0, 'medium_score': 1, 'high_score': 9},
         }, request=request)
 
@@ -71,9 +72,13 @@ class FeedbackCardResultTests(TestCase):
             feedback = self.feedbacks()[0]
 
         self.assertEqual(feedback.source_team.get_result_display(), 'placed 2nd')
-        self.assertEqual(feedback.team_result_class, 'primary')
+        self.assertEqual(feedback.team_result_class, 'info')
         self.assertFalse(hasattr(feedback, 'adjudicator_team_win'))
         self.assertFalse(any('results_teamscorebyadj' in q['sql'] for q in queries))
         card = self.render_card(feedback)
         self.assertIn('Placed 2nd as', card)
+        self.assertIn('badge badge-info ml-1', card)
+        self.assertIn('Team on Chair', card)
+        self.assertIn('badge bg-transparent border border-dark text-dark', card)
+        self.assertNotIn('Received as', card)
         self.assertNotIn('Adj →', card)

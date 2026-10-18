@@ -244,7 +244,7 @@ class FeedbackMixin(TournamentMixin):
             team = feedback.source_team
             if teams_in_debate == 4:
                 feedback.team_result_class = {
-                    3: 'success', 2: 'primary', 1: 'warning', 0: 'danger',
+                    3: 'success', 2: 'info', 1: 'warning', 0: 'danger',
                 }.get(team.points, 'secondary')
             else:
                 feedback.team_result_class = ('success' if team.win is True else
